@@ -1,0 +1,17 @@
+{
+    "name": "netlogix/jobqueue-scheduled",
+    "description": "Allows for scheduled jobs and deduplicates",
+    "license": "MIT",
+    "type": "neos-package",
+    "require": {
+        "flowpack/jobqueue-common": "^3.0",
+        "doctrine/dbal": "^2.9",
+        "doctrine/orm": "^2.6",
+        "neos/flow": "^5.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Netlogix\\JobQueue\\Scheduled\\": "Classes/"
+        }
+    }
+}
