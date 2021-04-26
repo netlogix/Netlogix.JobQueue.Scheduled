@@ -93,7 +93,7 @@ happens.
 This is currently done via cronjobs.
 
 ```crontab
-* * * * * ./flow ./flow scheduler:queueduejobs
+* * * * *   ./flow scheduler:queueduejobs
 ```
 
 The internal scheduling mechanism will make sure only those jobs are passed from the
