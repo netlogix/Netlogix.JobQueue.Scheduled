@@ -87,7 +87,7 @@ job the earliest value is taken.
 
 ## Queue scheduled jobs
 
-A scheduled job lives the database and is not processed any further until queueing
+A scheduled job lives in the database and is not processed any further until queueing
 happens.
 
 This is currently done via cronjobs.
