@@ -34,6 +34,31 @@ class RetrievingTest extends TestCase
     /**
      * @test
      */
+    public function Without_scheduled_jobs_none_can_be_found_by_identifier(): void
+    {
+        self::assertFalse($this->scheduler->isScheduled('my-identifier'));
+    }
+
+    /**
+     * @test
+     */
+    public function Scheduled_jobs_can_be_found_by_identifier(): void
+    {
+        $this->scheduler->schedule(
+            new ScheduledJob(
+                self::getJobQueueJob(),
+                self::getQueueName(),
+                $this->now->modify('+ 1 day'),
+                'my-identifier'
+            )
+        );
+
+        self::assertTrue($this->scheduler->isScheduled('my-identifier'));
+    }
+
+    /**
+     * @test
+     */
     public function Future_due_jobs_can_not_be_retrieved_yet(): void
     {
         $this->scheduler->schedule(

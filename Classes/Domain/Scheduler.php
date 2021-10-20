@@ -42,6 +42,16 @@ class Scheduler
         }
     }
 
+    public function isScheduled(string $identifier): bool
+    {
+        $statement = '
+            SELECT 1 FROM ' . ScheduledJob::TABLE_NAME . '
+            WHERE identifier = :identifier
+       ';
+
+        return $this->dbal->fetchOne($statement, ['identifier' => $identifier]) !== false;
+    }
+
     public function next(): ?ScheduledJob
     {
         $statement = '
