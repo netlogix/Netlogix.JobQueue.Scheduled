@@ -1,6 +1,7 @@
 {
     "name": "netlogix/jobqueue-scheduled",
     "description": "Allows for scheduled jobs and deduplicates",
+    "version": "1.0.0",
     "license": "MIT",
     "type": "neos-package",
     "require": {
