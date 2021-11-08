@@ -38,9 +38,42 @@ class SchedulerCommandController extends CommandController
      */
     public function queueDueJobsCommand(): void
     {
+        $this->queueDueJobs();
+    }
+
+    /**
+     * Fetch due jobs and schedule them, then wait and retry.
+     * This is probably not the best way of polling for changes
+     */
+    public function pollForIncomingJobsCommand(): void
+    {
+        $startTime = time();
+        $oneHourInSeconds = 3600;
+        $endTime = $startTime + $oneHourInSeconds;
+
+        while (true) {
+            $numberOfHandledJobs = $this->queueDueJobs();
+            if (time() >= $endTime) {
+                return;
+            }
+            if ($numberOfHandledJobs === 0) {
+                sleep(1);
+            }
+        }
+    }
+
+    /**
+     * @return int Number of handled jobs
+     */
+    protected function queueDueJobs(): int
+    {
         $reschedule = [];
         $exceptions = [];
+
+        $numberOfHandledJobs = 0;
+
         while ($next = $this->scheduler->next()) {
+            $numberOfHandledJobs++;
             try {
                 $this->jobManager->queue(
                     $next->getQueueName(),
@@ -57,6 +90,7 @@ class SchedulerCommandController extends CommandController
             // TODO: Log all throwables
             throw $exceptions[0];
         }
-    }
 
+        return $numberOfHandledJobs;
+    }
 }
