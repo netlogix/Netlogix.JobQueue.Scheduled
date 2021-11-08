@@ -1,0 +1,2 @@
+Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation:
+  className: Netlogix\JobQueue\Scheduled\DueDateCalculation\FloatingTimeBaseForDueDateCalculation

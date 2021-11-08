@@ -10,6 +10,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManager as DoctrineEntityManager;
 use Neos\Flow\Utility\Now;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 
 class Scheduler
 {
@@ -19,9 +20,9 @@ class Scheduler
     protected $dbal;
 
     /**
-     * @var Now
+     * @var TimeBaseForDueDateCalculation
      */
-    protected $now;
+    protected $timeBaseForDueDateCalculation;
 
     public function injectDoctrineObjectManager(DoctrineObjectManager $entityManager): void
     {
@@ -29,9 +30,9 @@ class Scheduler
         $this->dbal = $entityManager->getConnection();
     }
 
-    public function injectNow(Now $now): void
+    public function injectNow(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
     {
-        $this->now = $now;
+        $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
 
     public function schedule(ScheduledJob $job, ScheduledJob ...$jobs): void
@@ -65,7 +66,7 @@ class Scheduler
             ->executeQuery(
                 $statement,
                 [
-                    'now' => $this->now
+                    'now' => $this->timeBaseForDueDateCalculation->getNow()
                 ],
                 [
                     'now' => Types::DATETIME_IMMUTABLE
