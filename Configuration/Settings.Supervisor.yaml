@@ -1,0 +1,17 @@
+Netlogix:
+  Supervisor:
+
+    programs:
+
+      jobqueue-scheduled-jobs:
+
+        # Mandatory script to be executed and watched by supervisor
+        command: './flow scheduler:pollforincomingjobs'
+
+        # Programs need names for supervisor to distinguish and assign to groups
+        name: 'jobqueue-scheduled-jobs'
+
+        process_name: '%(program_name)s_%(process_num)02d'
+        startsecs: 35
+        startretries: 25
+        user: 'www-data'
