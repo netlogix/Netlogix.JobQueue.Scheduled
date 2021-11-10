@@ -6,7 +6,7 @@ Netlogix:
       jobqueue-scheduled-jobs:
 
         # Mandatory script to be executed and watched by supervisor
-        command: './flow scheduler:pollforincomingjobs'
+        command: 'bash -c "sleep 5 && exec ./flow scheduler:pollforincomingjobs"'
 
         # Programs need names for supervisor to distinguish and assign to groups
         name: 'jobqueue-scheduled-jobs'
