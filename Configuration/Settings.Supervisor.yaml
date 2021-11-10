@@ -14,4 +14,6 @@ Netlogix:
         process_name: '%(program_name)s_%(process_num)02d'
         startsecs: 35
         startretries: 25
+        autostart: true
+        autorestart: true
         user: 'www-data'
