@@ -10,9 +10,9 @@
         }
     },
     "require": {
-        "flowpack/jobqueue-common": "^3.0",
         "doctrine/dbal": "^2.9",
         "doctrine/orm": "^2.6",
+        "flowpack/jobqueue-common": "^3.0",
         "neos/flow": "^5.3"
     },
     "suggest": {
