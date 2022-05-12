@@ -3,22 +3,21 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
-use Neos\Flow\Utility\Now;
+use DateTimeImmutable;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 
 class RetrievingTest extends TestCase
 {
     /**
-     * @var Now
+     * @var DateTimeImmutable
      */
     protected $now;
 
     public function setUp(): void
     {
         parent::setUp();
-        $now = $this->objectManager->get(Now::class);
-        assert($now instanceof Now);
-        $this->now = $now;
+
+        $this->now = self::getDueDate();
     }
 
     /**

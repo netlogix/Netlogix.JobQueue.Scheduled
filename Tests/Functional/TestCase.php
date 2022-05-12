@@ -4,10 +4,10 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use DateTimeImmutable;
+use Neos\Flow\Utility\Now;
 use Neos\Flow\Core\Bootstrap;
 use Neos\Flow\Persistence\QueryResultInterface;
 use Neos\Flow\Tests\FunctionalTestCase;
-use Neos\Flow\Utility\Now;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Tests\Fixture\JobQueueJob;
@@ -39,6 +39,13 @@ class TestCase extends FunctionalTestCase
         // Care for "modified now" in some environments
         $now = Bootstrap::$staticObjectManager->get(Now::class);
         assert($now instanceof Now);
+        $now = $now->setTime(
+            (int)$now->format('H'),
+            (int)$now->format('i'),
+            (int)$now->format('s'),
+            0
+        );
+
         return $now;
     }
 
