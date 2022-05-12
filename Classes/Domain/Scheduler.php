@@ -4,11 +4,9 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use DateTimeImmutable;
-use Doctrine\Common\Persistence\ObjectManager as DoctrineObjectManager;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
-use Doctrine\ORM\EntityManager as DoctrineEntityManager;
-use Neos\Flow\Utility\Now;
+use Doctrine\ORM\EntityManagerInterface;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 
@@ -24,13 +22,12 @@ class Scheduler
      */
     protected $timeBaseForDueDateCalculation;
 
-    public function injectDoctrineObjectManager(DoctrineObjectManager $entityManager): void
+    public function injectEntityManager(EntityManagerInterface $entityManager): void
     {
-        assert($entityManager instanceof DoctrineEntityManager);
         $this->dbal = $entityManager->getConnection();
     }
 
-    public function injectNow(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
+    public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
     {
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }

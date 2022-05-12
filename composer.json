@@ -12,7 +12,7 @@
         "doctrine/dbal": "^2.9",
         "doctrine/orm": "^2.6",
         "flowpack/jobqueue-common": "^3.0",
-        "neos/flow": "^5.3"
+        "neos/flow": "^5.3 || ^6.3"
     },
     "suggest": {
         "netlogix/supervisor": "Create supervisord programs that run the 'scheduler:pollforincomingjobs' command"
