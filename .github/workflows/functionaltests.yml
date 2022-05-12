@@ -4,7 +4,7 @@ on: [ push, pull_request ]
 
 jobs:
   unittests:
-    name: '[PHP ${{ matrix.php-version }} | Flow ${{ matrix.flow-version }}] Functional Tests'
+    name: '[PHP ${{ matrix.php-version }} | Flow ${{ matrix.flow-version }} | MySQL ${{ matrix.mysql-version }}] Functional Tests'
     runs-on: ubuntu-latest
 
     strategy:
@@ -89,8 +89,8 @@ jobs:
           'mysql user': ${{ env.MYSQL_USER }}
           'mysql password': ${{ env.MYSQL_PASSWORD }}
 
-      - name: "Move Settings.yaml.dist"
-        run: mv DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.dist Configuration/Testing/
+      - name: "Copy Settings.yaml.dist"
+        run: cp DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.dist Configuration/Testing/Settings.yaml
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: Run tests
