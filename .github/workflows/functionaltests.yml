@@ -54,7 +54,7 @@ jobs:
           ini-values: opcache.fast_shutdown=0
 
       - name: "[1/4] Create composer project - Cache composer dependencies"
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.composer/cache
           key: php-${{ matrix.php-version }}-flow-${{ matrix.flow-version }}-composer-${{ hashFiles('composer.json') }}
