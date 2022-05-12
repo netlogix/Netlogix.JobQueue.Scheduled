@@ -7,7 +7,6 @@ use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
-use Neos\Flow\Utility\Now;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 
@@ -28,7 +27,7 @@ class Scheduler
         $this->dbal = $entityManager->getConnection();
     }
 
-    public function injectNow(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
+    public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
     {
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
