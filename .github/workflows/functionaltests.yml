@@ -12,6 +12,7 @@ jobs:
       matrix:
         php-version: [ 7.2, 7.3, 7.4, 8.0, 8.1 ]
         flow-version: [ 5.3 ]
+        mysql-version: [5.7, 8.0]
         exclude:
           # Disable Flow 5.3 and 6.3 on PHP 8.0, as only ^7.2 is supported
           - php-version: 8.0
@@ -39,6 +40,10 @@ jobs:
       APP_ENV: true
       FLOW_CONTEXT: Testing/Functional
       FLOW_DIST_FOLDER: flow-base-distribution
+      MYSQL_PORT: 3800
+      MYSQL_DATABASE: 'flow'
+      MYSQL_USER: 'flow'
+      MYSQL_PASSWORD: 'flow'
 
     steps:
       - uses: shivammathur/setup-php@v2
@@ -73,6 +78,19 @@ jobs:
 
       - name: Install netlogix/jobqueue-scheduled
         run: composer require netlogix/jobqueue-scheduled:@dev
+        working-directory: ${{ env.FLOW_DIST_FOLDER }}
+
+      - name: Set up MySQL
+        uses: mirromutth/mysql-action@v1.1
+        with:
+          'host port': ${{ env.MYSQL_PORT }}
+          'mysql version': ${{ matrix.mysql-version }}
+          'mysql database': ${{ env.MYSQL_DATABASE }}
+          'mysql user': ${{ env.MYSQL_USER }}
+          'mysql password': ${{ env.MYSQL_PASSWORD }}
+
+      - name: "Move Settings.yaml.dist"
+        run: mv DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.dist Configuration/Testing/
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: Run tests
