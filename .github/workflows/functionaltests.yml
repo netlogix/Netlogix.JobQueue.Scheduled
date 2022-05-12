@@ -40,6 +40,7 @@ jobs:
       APP_ENV: true
       FLOW_CONTEXT: Testing/Functional
       FLOW_DIST_FOLDER: flow-base-distribution
+      MYSQL_HOST: '127.0.0.1'
       MYSQL_PORT: 3800
       MYSQL_DATABASE: 'flow'
       MYSQL_USER: 'flow'

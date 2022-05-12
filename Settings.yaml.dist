@@ -3,7 +3,7 @@ Neos:
     persistence:
       backendOptions:
         driver: 'pdo_mysql'
-        host: 'localhost'
+        host: '%env:MYSQL_HOST%'
         dbname: '%env:MYSQL_DATABASE%'
         port: '%env:MYSQL_PORT%'
         user: '%env:MYSQL_USER%'
