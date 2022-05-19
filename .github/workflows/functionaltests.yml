@@ -82,7 +82,8 @@ jobs:
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: Set up MySQL
-        uses: mirromutth/mysql-action@v1.1
+        # Use haltuf's fork of mirromutth/mysql-action until https://github.com/mirromutth/mysql-action/pull/7 is merged
+        uses: haltuf/mysql-action@master
         with:
           'host port': ${{ env.MYSQL_PORT }}
           'mysql version': ${{ matrix.mysql-version }}
