@@ -53,7 +53,7 @@ class Scheduler
     public function next(): ?ScheduledJob
     {
         $statement = '
-            SELECT identifier, duedate, queue, job
+            SELECT identifier, duedate, queue, job, incarnation
             FROM ' . ScheduledJob::TABLE_NAME . '
             WHERE duedate <= :now
             ORDER BY duedate ASC
@@ -82,7 +82,8 @@ class Scheduler
             unserialize($row['job']),
             $row['queue'],
             new DateTimeImmutable($row['duedate']),
-            $row['identifier']
+            (string)$row['identifier'],
+            (int)$row['incarnation']
         );
     }
 
@@ -90,10 +91,11 @@ class Scheduler
     {
         $statement = '
             INSERT INTO ' . ScheduledJob::TABLE_NAME . '
-                (identifier, duedate, queue, job)
-            VALUES (:identifier, :duedate, :queue, :job)
+                (identifier, duedate, queue, job, incarnation)
+            VALUES (:identifier, :duedate, :queue, :job, :incarnation)
             ON DUPLICATE KEY
                 UPDATE duedate = IF(:duedate < duedate, :duedate, duedate),
+                       incarnation = IF(:incarnation < incarnation, :incarnation, incarnation),
                        queue    = :queue,
                        job      = :job
        ';
@@ -104,13 +106,15 @@ class Scheduler
                     'identifier' => $job->getIdentifier(),
                     'duedate' => $job->getDuedate(),
                     'queue' => $job->getQueueName(),
-                    'job' => serialize($job->getJob())
+                    'job' => serialize($job->getJob()),
+                    'incarnation' => $job->getIncarnation(),
                 ],
                 [
                     'identifier' => Types::STRING,
                     'duedate' => Types::DATETIME_IMMUTABLE,
                     'queue' => Types::STRING,
-                    'job' => Types::BLOB
+                    'job' => Types::BLOB,
+                    'incarnation' => Types::INTEGER
                 ]
             );
         // TODO: Find a way to "trigger queueing" without cronjobs. Maybe "dynamic cronjobs" like "at".
