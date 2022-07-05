@@ -56,7 +56,7 @@ class ScheduledJob
         JobInterface $job,
         string $queue,
         DateTimeImmutable $duedate,
-        ?string $identifier = null,
+        string $identifier = '',
         int $incarnation = 0,
         string $claimed = ''
     ) {
