@@ -91,6 +91,7 @@ class SchedulerCommandController extends CommandController
                     $next->getJob()
                 );
                 $numberOfHandledJobs++;
+                $this->scheduler->release($next);
             } catch (\Throwable $throwable) {
                 $this->throwableStorage->logThrowable($throwable);
                 $retry->markJobForRescheduling($next);

@@ -46,18 +46,26 @@ class ScheduledJob
      */
     protected $incarnation = 0;
 
+    /**
+     * @var string
+     * @ORM\Column(length=36, options={"fixed": true, "default": ""})
+     */
+    protected $claimed = '';
+
     public function __construct(
         JobInterface $job,
         string $queue,
         DateTimeImmutable $duedate,
         ?string $identifier = null,
-        int $incarnation = 0
+        int $incarnation = 0,
+        string $claimed = ''
     ) {
         $this->job = $job;
         $this->queue = $queue;
         $this->duedate = $duedate;
         $this->identifier = $identifier ?: Algorithms::generateUUID();
         $this->incarnation = $incarnation;
+        $this->claimed = $claimed;
     }
 
     public function getIdentifier(): string
@@ -83,5 +91,10 @@ class ScheduledJob
     public function getIncarnation(): int
     {
         return $this->incarnation;
+    }
+
+    public function getClaimed(): string
+    {
+        return $this->claimed;
     }
 }
