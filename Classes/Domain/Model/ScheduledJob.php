@@ -11,6 +11,7 @@ use Neos\Flow\Utility\Algorithms;
 
 /**
  * @Flow\Entity
+ * @Flow\Proxy(false)
  * @ORM\Table(name=ScheduledJob::TABLE_NAME)
  */
 class ScheduledJob
