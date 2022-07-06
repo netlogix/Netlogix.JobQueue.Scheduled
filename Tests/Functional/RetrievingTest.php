@@ -88,7 +88,8 @@ class RetrievingTest extends TestCase
         $retrievedJob = $this->scheduler->next();
 
         self::assertInstanceOf(ScheduledJob::class, $retrievedJob);
-        self::assertEquals($scheduledJob, $retrievedJob);
+        assert($retrievedJob instanceof ScheduledJob);
+        self::assertEquals($scheduledJob->getIdentifier(), $retrievedJob->getIdentifier());
     }
 
     /**
@@ -109,5 +110,24 @@ class RetrievingTest extends TestCase
 
         self::assertNotNull($retrievedJob1);
         self::assertNull($retrievedJob2);
+    }
+
+    /**
+     * @test
+     */
+    public function Scheduled_jobs_are_claimed(): void
+    {
+        $scheduledJob = new ScheduledJob(
+            self::getJobQueueJob(),
+            self::getQueueName(),
+            $this->now->modify('- 1 day')
+        );
+        $this->scheduler->schedule($scheduledJob);
+
+        $retrievedJob = $this->scheduler->next();
+
+        self::assertInstanceOf(ScheduledJob::class, $retrievedJob);
+        assert($retrievedJob instanceof ScheduledJob);
+        self::assertNotEquals('', $retrievedJob->getClaimed());
     }
 }

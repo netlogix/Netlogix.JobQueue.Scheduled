@@ -1,0 +1,30 @@
+Flowpack:
+  JobQueue:
+    Common:
+
+      queues:
+
+        # The queue for executing scheduled jobs must be a regular job queue
+        # because scheduled jobs are handed over to this queue when due.
+        # This means regular job queue config goes here.
+        queue-name-to-execute-scheduled-jobs:
+
+
+          # If a job is scheduled, there are additional settings for handling retries
+          scheduledJobs:
+
+
+            # The backoff strategy determines the growth of the delay between consecutive tries.
+            # Using "linear" means the retry interval is added as is.
+            # Using "exponential" means the delay is calculated as `pow(2, $currentRetry) * $retryInterval`.
+            backoffStrategy: linear
+
+            # Jobs with 0 retries don't get retried
+            # Jobs with 5 retries get tried 6 times in total
+            # Jobs with negative retries get retried infinitely
+            # Default is -1 because of legacy settings.
+            numberOfRetries: -1
+
+            # The number of seconds to wait between consecutive tries, in seconds.
+            # Using 0 means it gets tried right away.
+            retryInterval: 0

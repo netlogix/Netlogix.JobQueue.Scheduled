@@ -6,7 +6,11 @@ namespace Netlogix\JobQueue\Scheduled\Command;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
+use Neos\Flow\Log\ThrowableStorageInterface;
+use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Retry;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
+use RuntimeException;
 
 /**
  * @Flow\Scope("singleton")
@@ -23,6 +27,11 @@ class SchedulerCommandController extends CommandController
      */
     protected $jobManager;
 
+    /**
+     * @var ThrowableStorageInterface
+     */
+    protected $throwableStorage;
+
     public function injectScheduler(Scheduler $scheduler): void
     {
         $this->scheduler = $scheduler;
@@ -31,6 +40,11 @@ class SchedulerCommandController extends CommandController
     public function injectJobManager(JobManager $jobManager): void
     {
         $this->jobManager = $jobManager;
+    }
+
+    public function injectThrowableStorageInterface(ThrowableStorageInterface $throwableStorage): void
+    {
+        $this->throwableStorage = $throwableStorage;
     }
 
     /**
@@ -67,30 +81,24 @@ class SchedulerCommandController extends CommandController
      */
     protected function queueDueJobs(): int
     {
-        $reschedule = [];
-        $exceptions = [];
-
         $numberOfHandledJobs = 0;
+        $retry = new Retry($this->scheduler);
 
         while ($next = $this->scheduler->next()) {
-            $numberOfHandledJobs++;
             try {
                 $this->jobManager->queue(
                     $next->getQueueName(),
                     $next->getJob()
                 );
-            } catch (\Throwable $e) {
-                // TODO: Back off strategy
-                $reschedule[] = $next;
-                $exceptions[] = $e;
+                $numberOfHandledJobs++;
+                $this->scheduler->release($next);
+            } catch (\Throwable $throwable) {
+                $this->throwableStorage->logThrowable($throwable);
+                $retry->markJobForRescheduling($next);
             }
         }
-        if ($reschedule) {
-            $this->scheduler->schedule(... $reschedule);
-            // TODO: Log all throwables
-            throw $exceptions[0];
-        }
 
+        $retry->scheduleAll();
         return $numberOfHandledJobs;
     }
 }
