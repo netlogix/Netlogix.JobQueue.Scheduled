@@ -71,6 +71,7 @@ class Retry
             $nextIncarnation = $job->getIncarnation() + 1;
             $numberOfRetries = (int)($retryConfiguration['numberOfRetries'] ?? self::DEFAULT_NUMBER_OF_RETRIES);
             if ($numberOfRetries === 0 || ($numberOfRetries > 0 && $nextIncarnation > $numberOfRetries)) {
+                $this->scheduler->release($job);
                 continue;
             }
 

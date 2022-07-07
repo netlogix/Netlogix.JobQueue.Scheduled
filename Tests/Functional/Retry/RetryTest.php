@@ -79,4 +79,34 @@ class RetryTest extends TestCase
         self::assertEquals($job->getIncarnation() + 1, $first->getIncarnation());
         self::assertEquals($job->getJob(), $first->getJob());
     }
+
+    /**
+     * @test
+     */
+    public function Expired_jobs_get_removed(): void
+    {
+        $job = new ScheduledJob(
+            self::getJobQueueJob(),
+            self::getQueueName(),
+            $this->now,
+            'my-first-identifier',
+            100,
+            'claim'
+        );
+        $this->persistenceManager->add($job);
+        $this->persistenceManager->persistAll();
+
+        $retry = new Retry($this->scheduler);
+        $retry->injectQueueManager($this->queueManager([
+            'scheduledJobs' => [
+                'backoffStrategy' => 'linear',
+                'numberOfRetries' => 100,
+            ],
+        ]));
+        $retry->markJobForRescheduling($job);
+        $retry->scheduleAll();
+
+        $all = $this->findAll();
+        self::assertEmpty( $all);
+    }
 }

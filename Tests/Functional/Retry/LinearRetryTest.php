@@ -17,7 +17,9 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
-            'my-first-identifier'
+            'my-first-identifier',
+            0,
+            'some-claim'
         );
 
         $retry = new Retry($this->scheduler);
@@ -135,7 +137,8 @@ class LinearRetryTest extends TestCase
             self::getQueueName(),
             $this->now,
             'my-first-identifier',
-            10
+            10,
+            'some-claim'
         );
 
         $retry = new Retry($this->scheduler);
