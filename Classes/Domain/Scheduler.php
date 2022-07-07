@@ -138,7 +138,7 @@ class Scheduler
             VALUES (:identifier, :duedate, :queue, :job, :incarnation, :claimed)
             ON DUPLICATE KEY
                 UPDATE duedate = IF(:duedate < duedate, :duedate, duedate),
-                       incarnation = IF(:incarnation < incarnation, :incarnation, incarnation),
+                       incarnation = :incarnation,
                        queue    = :queue,
                        job      = :job,
                        claimed  = :claimed

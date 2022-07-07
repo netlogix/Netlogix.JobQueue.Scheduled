@@ -109,4 +109,69 @@ class RetryTest extends TestCase
         $all = $this->findAll();
         self::assertEmpty( $all);
     }
+
+    /**
+     * @test
+     */
+    public function Scheduling_a_resh_job_resets_the_incarnation_count(): void
+    {
+        $this->scheduler->schedule(
+            new ScheduledJob(
+                self::getJobQueueJob(),
+                self::getQueueName(),
+                self::getDueDate(),
+                'some-identifier',
+                1234567
+            )
+        );
+
+        $this->scheduler->schedule(
+            new ScheduledJob(
+                self::getJobQueueJob(),
+                self::getQueueName(),
+                self::getDueDate(),
+                'some-identifier'
+            )
+        );
+
+        $scheduledJob = $this->findFirst();
+
+        self::assertEquals(
+            0,
+            $scheduledJob->getIncarnation()
+        );
+    }
+
+    /**
+     * @test
+     */
+    public function Rescheduling_a_job_does_not_reset_the_incarnation_count(): void
+    {
+        $this->scheduler->schedule(
+            new ScheduledJob(
+                self::getJobQueueJob(),
+                self::getQueueName(),
+                self::getDueDate(),
+                'some-identifier',
+                100
+            )
+        );
+
+        $this->scheduler->schedule(
+            new ScheduledJob(
+                self::getJobQueueJob(),
+                self::getQueueName(),
+                self::getDueDate(),
+                'some-identifier',
+                1000
+            )
+        );
+
+        $scheduledJob = $this->findFirst();
+
+        self::assertEquals(
+            1000,
+            $scheduledJob->getIncarnation()
+        );
+    }
 }
