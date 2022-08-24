@@ -41,7 +41,7 @@ class TestCase extends JobQueueTestCase
     protected function numberOfSecondsInterval(int $numberOfSeconds): DateInterval
     {
         $denormalizedDiff = DateInterval::createFromDateString($numberOfSeconds . ' seconds');
-        $earlier = new DateTimeImmutable();
+        $earlier = $this->now;
         $later = $earlier->add($denormalizedDiff);
         $normalizedDiff = $later->diff($earlier);
         return $normalizedDiff;
