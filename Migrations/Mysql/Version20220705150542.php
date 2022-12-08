@@ -10,7 +10,7 @@ use Doctrine\Migrations\AbstractMigration;
  */
 class Version20220705150542 extends AbstractMigration
 {
-    public function up(Schema $schema)
+    public function up(Schema $schema): void
     {
         $this->abortIf($this->connection->getDatabasePlatform()->getName() != 'mysql',
             'Migration can only be executed safely on "mysql".');
@@ -18,7 +18,7 @@ class Version20220705150542 extends AbstractMigration
         $this->addSql('ALTER TABLE netlogix_jobqueue_scheduled_job ADD claimed CHAR(36) DEFAULT \'\' NOT NULL');
     }
 
-    public function down(Schema $schema)
+    public function down(Schema $schema): void
     {
         $this->abortIf($this->connection->getDatabasePlatform()->getName() != 'mysql',
             'Migration can only be executed safely on "mysql".');
