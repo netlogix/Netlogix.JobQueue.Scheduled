@@ -8,6 +8,11 @@ There are two main goals:
 2. Have a single job only scheduled once.
 
 
+## Installation
+```bash
+composer require netlogix/jobqueue-scheduled
+```
+
 ## Schedule jobs
 
 The first goal of this package is to have a way to put any kind of JobQueue job  on hold
