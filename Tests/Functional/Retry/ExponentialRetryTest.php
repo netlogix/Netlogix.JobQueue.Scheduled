@@ -130,7 +130,7 @@ class ExponentialRetryTest extends TestCase
     /**
      * @return \Generator<{incarnation: int, delayInSeconds: int}>
      */
-    public function provideIncarnations(): \Generator
+    public static function provideIncarnations(): \Generator
     {
         yield 'first retry' => [
             'incarnation' => 0,
