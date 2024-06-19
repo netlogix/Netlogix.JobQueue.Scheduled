@@ -14,11 +14,13 @@ class Retry
     const DEFAULT_BACKOFF_STRATEGY = 'linear';
     const DEFAULT_NUMBER_OF_RETRIES = -1;
     const DEFAULT_RETRY_INTERVAL = 0;
+    const DEFAULT_KEEP_FAILED_JOBS = false;
 
     private const DEFAULT_BEHAVIOR = [
         'backoffStrategy' => self::DEFAULT_BACKOFF_STRATEGY,
         'numberOfRetries' => self::DEFAULT_NUMBER_OF_RETRIES,
-        'retryInterval' => self::DEFAULT_RETRY_INTERVAL
+        'retryInterval' => self::DEFAULT_RETRY_INTERVAL,
+        'keepFailedJobs' => self::DEFAULT_KEEP_FAILED_JOBS,
     ];
 
     /**
@@ -70,8 +72,16 @@ class Retry
 
             $nextIncarnation = $job->getIncarnation() + 1;
             $numberOfRetries = (int)($retryConfiguration['numberOfRetries'] ?? self::DEFAULT_NUMBER_OF_RETRIES);
-            if ($numberOfRetries === 0 || ($numberOfRetries > 0 && $nextIncarnation > $numberOfRetries)) {
+            if ($numberOfRetries === 0) {
                 $this->scheduler->release($job);
+                continue;
+            } elseif ($numberOfRetries > 0 && $nextIncarnation > $numberOfRetries) {
+                $keepFailedJobs = (bool)($retryConfiguration['keepFailedJobs'] ?? self::DEFAULT_KEEP_FAILED_JOBS);
+                if ($keepFailedJobs) {
+                    $this->scheduler->fail($job, 'retries exhausted');
+                } else {
+                    $this->scheduler->release($job);
+                }
                 continue;
             }
 
