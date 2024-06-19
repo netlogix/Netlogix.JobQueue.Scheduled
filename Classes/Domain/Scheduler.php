@@ -130,6 +130,34 @@ class Scheduler
 
     }
 
+    public function fail(ScheduledJob $job, string $reason): void
+    {
+        if ($job->getClaimed() === '') {
+            throw new InvalidArgumentException('Cannot fail unclaimed jobs', 1718808398);
+        }
+
+        $update = /** @lang MySQL */ '
+            UPDATE ' . ScheduledJob::TABLE_NAME . '
+            SET claimed = :failed
+            WHERE identifier = :identifier
+                  AND claimed = :claimed
+            LIMIT 1
+        ';
+        $this->dbal
+            ->executeQuery(
+                $update,
+                [
+                    'identifier' => $job->getIdentifier(),
+                    'claimed' => $job->getClaimed(),
+                    'failed' => sprintf('failed(%s)', $reason),
+                ],
+                [
+                    'identifier' => Types::STRING,
+                    'claimed' => Types::STRING,
+                ]
+            );
+    }
+
     protected function scheduleJob(ScheduledJob $job): void
     {
         $statement = '

@@ -113,6 +113,44 @@ class RetryTest extends TestCase
     /**
      * @test
      */
+    public function Expired_jobs_are_kept_if_the_queue_has_it_configured(): void
+    {
+        $job = new ScheduledJob(
+            self::getJobQueueJob(),
+            self::getQueueName(),
+            $this->now,
+            'my-first-identifier',
+            100,
+            'claim'
+        );
+        $this->persistenceManager->add($job);
+        $this->persistenceManager->persistAll();
+
+        $retry = new Retry($this->scheduler);
+        $retry->injectQueueManager($this->queueManager([
+            'scheduledJobs' => [
+                'backoffStrategy' => 'linear',
+                'numberOfRetries' => 100,
+                'keepFailedJobs' => true,
+            ],
+        ]));
+        $retry->markJobForRescheduling($job);
+        $retry->scheduleAll();
+
+        $this->persistenceManager->clearState();
+
+        $all = $this->findAll();
+        self::assertCount(1, $all);
+
+        $first = $all[0];
+        self::assertInstanceOf(ScheduledJob::class, $first);
+        self::assertEquals('my-first-identifier', $first->getIdentifier());
+        self::assertEquals('failed(retries exhausted)', $first->getClaimed());
+    }
+
+    /**
+     * @test
+     */
     public function Scheduling_a_resh_job_resets_the_incarnation_count(): void
     {
         $this->scheduler->schedule(

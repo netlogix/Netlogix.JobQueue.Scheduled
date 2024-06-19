@@ -7,7 +7,7 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 
-class ReleaseTest extends TestCase
+class FailTest extends TestCase
 {
     /**
      * @var DateTimeImmutable
@@ -24,7 +24,7 @@ class ReleaseTest extends TestCase
     /**
      * @test
      */
-    public function Claimed_jobs_can_be_released(): void
+    public function Claimed_jobs_can_be_failed(): void
     {
         $job = new ScheduledJob(
             self::getJobQueueJob(),
@@ -38,16 +38,20 @@ class ReleaseTest extends TestCase
         $this->persistenceManager->persistAll();
         $this->persistenceManager->clearState();
 
-        $this->scheduler->release($job);
+        $this->scheduler->fail($job, 'Some great reason');
 
         $all = $this->findAll();
-        self::assertEmpty($all);
+        self::assertCount(1, $all);
+
+        $first = $all[0];
+        self::assertInstanceOf(ScheduledJob::class, $first);
+        self::assertEquals('failed(Some great reason)', $first->getClaimed());
     }
 
     /**
      * @test
      */
-    public function Cannot_remove_unclaimed_jobs(): void
+    public function Cannot_fail_unclaimed_jobs(): void
     {
         $job = new ScheduledJob(
             self::getJobQueueJob(),
@@ -58,8 +62,8 @@ class ReleaseTest extends TestCase
         );
 
         self::expectException(InvalidArgumentException::class);
-        self::expectExceptionCode(1657027508);
+        self::expectExceptionCode(1718808398);
 
-        $this->scheduler->release($job);
+        $this->scheduler->fail($job, 'Some great reason');
     }
 }

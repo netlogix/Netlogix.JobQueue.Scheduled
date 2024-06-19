@@ -28,3 +28,7 @@ Flowpack:
             # The number of seconds to wait between consecutive tries, in seconds.
             # Using 0 means it gets tried right away.
             retryInterval: 0
+
+            # Keep jobs in the database that failed more than their numberOfRetries. Only works when numberOfRetries > 0.
+            # Failed jobs will receive "failed($reason)" as their claimed column.
+            keepFailedJobs: false
