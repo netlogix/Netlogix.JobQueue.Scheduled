@@ -36,12 +36,24 @@ jobs:
           - php-version: 7.4
             flow-version: 8.0
 
+    services:
+      mysql:
+        image: 'mysql:${{ matrix.mysql-version }}'
+        env:
+          MYSQL_USER: flow
+          MYSQL_PASSWORD: flow
+          MYSQL_DATABASE: flow
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - '3306:3306'
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
     env:
       APP_ENV: true
       FLOW_CONTEXT: Testing/Functional
       FLOW_DIST_FOLDER: flow-base-distribution
       MYSQL_HOST: '127.0.0.1'
-      MYSQL_PORT: 3800
+      MYSQL_PORT: 3306
       MYSQL_DATABASE: 'flow'
       MYSQL_USER: 'flow'
       MYSQL_PASSWORD: 'flow'
@@ -85,16 +97,6 @@ jobs:
       - name: Install netlogix/jobqueue-scheduled
         run: composer require netlogix/jobqueue-scheduled:@dev
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
-
-      - name: Set up MySQL
-        # Use haltuf's fork of mirromutth/mysql-action until https://github.com/mirromutth/mysql-action/pull/7 is merged
-        uses: haltuf/mysql-action@master
-        with:
-          'host port': ${{ env.MYSQL_PORT }}
-          'mysql version': ${{ matrix.mysql-version }}
-          'mysql database': ${{ env.MYSQL_DATABASE }}
-          'mysql user': ${{ env.MYSQL_USER }}
-          'mysql password': ${{ env.MYSQL_PASSWORD }}
 
       - name: "Copy Settings.yaml.dist"
         run: cp DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.dist Configuration/Testing/Settings.yaml
