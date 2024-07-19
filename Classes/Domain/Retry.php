@@ -19,8 +19,7 @@ class Retry
     private const DEFAULT_BEHAVIOR = [
         'backoffStrategy' => self::DEFAULT_BACKOFF_STRATEGY,
         'numberOfRetries' => self::DEFAULT_NUMBER_OF_RETRIES,
-        'retryInterval' => self::DEFAULT_RETRY_INTERVAL,
-        'keepFailedJobs' => self::DEFAULT_KEEP_FAILED_JOBS,
+        'retryInterval' => self::DEFAULT_RETRY_INTERVAL
     ];
 
     /**
@@ -112,6 +111,7 @@ class Retry
                 $job->getJob(),
                 $job->getQueueName(),
                 $nextDueDate,
+                $job->getGroupName(),
                 $job->getIdentifier(),
                 $nextIncarnation
             );

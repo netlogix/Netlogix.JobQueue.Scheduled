@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
@@ -7,10 +8,8 @@ use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
-use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Retry;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
-use RuntimeException;
 
 /**
  * @Flow\Scope("singleton")
@@ -50,23 +49,23 @@ class SchedulerCommandController extends CommandController
     /**
      * Fetch due jobs and schedule them for execution.
      */
-    public function queueDueJobsCommand(): void
+    public function queueDueJobsCommand(string $groupName): void
     {
-        $this->queueDueJobs();
+        $this->queueDueJobs($groupName);
     }
 
     /**
      * Fetch due jobs and schedule them, then wait and retry.
      * This is probably not the best way of polling for changes
      */
-    public function pollForIncomingJobsCommand(): void
+    public function pollForIncomingJobsCommand(string $groupName): void
     {
         $startTime = time();
         $oneHourInSeconds = 3600;
         $endTime = $startTime + $oneHourInSeconds;
 
         while (true) {
-            $numberOfHandledJobs = $this->queueDueJobs();
+            $numberOfHandledJobs = $this->queueDueJobs($groupName);
             if (time() >= $endTime) {
                 return;
             }
@@ -79,12 +78,12 @@ class SchedulerCommandController extends CommandController
     /**
      * @return int Number of handled jobs
      */
-    protected function queueDueJobs(): int
+    protected function queueDueJobs(string $groupName): int
     {
         $numberOfHandledJobs = 0;
         $retry = new Retry($this->scheduler);
 
-        while ($next = $this->scheduler->next()) {
+        while ($next = $this->scheduler->next($groupName)) {
             try {
                 $this->jobManager->queue(
                     $next->getQueueName(),

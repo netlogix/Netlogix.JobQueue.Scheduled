@@ -5,6 +5,7 @@ namespace Netlogix\JobQueue\Scheduled\Tests\Functional\Retry;
 
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Retry;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 class LinearRetryTest extends TestCase
 {
@@ -17,6 +18,7 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             0,
             'some-claim'
@@ -46,6 +48,7 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             $incarnation
         );
@@ -74,6 +77,7 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             $incarnation
         );
@@ -106,6 +110,7 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             $incarnation
         );
@@ -136,6 +141,7 @@ class LinearRetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             10,
             'some-claim'

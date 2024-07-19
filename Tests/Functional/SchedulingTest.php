@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 class SchedulingTest extends TestCase
 {
@@ -25,7 +26,8 @@ class SchedulingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                self::getDueDate()
+                self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -43,7 +45,8 @@ class SchedulingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                self::getDueDate()
+                self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -65,7 +68,8 @@ class SchedulingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                self::getDueDate()
+                self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -87,7 +91,8 @@ class SchedulingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                self::getDueDate()
+                self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME
             )
         );
 

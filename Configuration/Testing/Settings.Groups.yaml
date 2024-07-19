@@ -1,0 +1,7 @@
+Netlogix:
+  JobQueue:
+    Scheduled:
+
+      groupNames:
+
+        additional-group: true

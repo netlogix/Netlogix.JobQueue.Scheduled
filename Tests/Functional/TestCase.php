@@ -61,7 +61,8 @@ class TestCase extends FunctionalTestCase
         $scheduledJob = new ScheduledJob(
             self::getJobQueueJob(),
             self::getQueueName(),
-            self::getDueDate()
+            self::getDueDate(),
+            Scheduler::DEFAULT_GROUP_NAME
         );
 
         $this->scheduler->schedule($scheduledJob);

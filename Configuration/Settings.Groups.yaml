@@ -1,0 +1,21 @@
+Netlogix:
+  JobQueue:
+    Scheduled:
+
+      groupNames:
+
+        # For parallel execution of jobs, multiple workers are necessary.
+        # All jobs in the same queue have the same priority and are executed in the order they were scheduled.
+        #
+        # The rough idea is:
+        # * Use one group for short running jobs
+        # * Use another group for long running jobs
+        # * Use another group for jobs that occur very often
+        # * Use another group for jobs that occur very seldom
+        #
+        # This way, jobs are only blocked by others that have basically the same priority, but no very important
+        # but short running job can be blocked by others that run for a long time but aren't important at all.
+        #
+        # All groups need to be defined and enabled.
+        # Other strings can neither be used for scheduling jobs nor for having workers execute them.
+        default: true

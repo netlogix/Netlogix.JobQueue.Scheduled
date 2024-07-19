@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Domain;
@@ -12,12 +13,23 @@ use Neos\Flow\Utility\Algorithms;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 
+use function array_filter;
+use function in_array;
+use function sprintf;
+
 class Scheduler
 {
+    public const DEFAULT_GROUP_NAME = 'default';
+
     /**
      * @var Connection
      */
     protected $dbal;
+
+    /**
+     * @var string[]
+     */
+    protected array $activeGroupNames = [self::DEFAULT_GROUP_NAME];
 
     /**
      * @var TimeBaseForDueDateCalculation
@@ -34,6 +46,15 @@ class Scheduler
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
 
+    public function injectSettings(array $settings)
+    {
+        $activeGroupNames = array_filter($settings['groupNames'] ?? []);
+        $this->activeGroupNames = array_keys($activeGroupNames);
+        if (!$this->activeGroupNames) {
+            $this->activeGroupNames = [self::DEFAULT_GROUP_NAME];
+        }
+    }
+
     public function schedule(ScheduledJob $job, ScheduledJob ...$jobs): void
     {
         $jobs = func_get_args();
@@ -42,25 +63,31 @@ class Scheduler
         }
     }
 
-    public function isScheduled(string $identifier): bool
+    public function isScheduled(string $groupName, string $identifier): bool
     {
+        $this->validateGroupName($groupName);
+
         $statement = '
             SELECT 1 FROM ' . ScheduledJob::TABLE_NAME . '
             WHERE identifier = :identifier
+            AND groupname = :groupname
             AND claimed = ""
        ';
 
-        return $this->dbal->fetchOne($statement, ['identifier' => $identifier]) !== false;
+        return $this->dbal->fetchOne($statement, ['identifier' => $identifier, 'groupname' => $groupName]) !== false;
     }
 
-    public function next(): ?ScheduledJob
+    public function next(string $groupName): ?ScheduledJob
     {
+        $this->validateGroupName($groupName);
         $claim = Algorithms::generateUUID();
 
-        $update = /** @lang MySQL */ '
+        $update = /** @lang MySQL */
+            '
             UPDATE ' . ScheduledJob::TABLE_NAME . '
             SET claimed = :claimed
             WHERE duedate <= :now
+                  AND groupname = :groupname
                   AND claimed = ""
             ORDER BY duedate ASC
             LIMIT 1
@@ -70,10 +97,12 @@ class Scheduler
                 $update,
                 [
                     'now' => $this->timeBaseForDueDateCalculation->getNow(),
+                    'groupname' => $groupName,
                     'claimed' => $claim,
                 ],
                 [
                     'now' => Types::DATETIME_IMMUTABLE,
+                    'groupname' => Types::STRING,
                     'claimed' => Types::STRING,
                 ]
             );
@@ -82,14 +111,17 @@ class Scheduler
             SELECT identifier, duedate, queue, job, incarnation, claimed
             FROM ' . ScheduledJob::TABLE_NAME . '
             WHERE claimed = :claimed
+            AND groupname = :groupname
         ';
         $row = $this->dbal
             ->executeQuery(
                 $select,
                 [
+                    'groupname' => $groupName,
                     'claimed' => $claim,
                 ],
                 [
+                    'groupname' => Types::STRING,
                     'claimed' => Types::STRING,
                 ]
             )
@@ -103,6 +135,7 @@ class Scheduler
             unserialize($row['job']),
             $row['queue'],
             new DateTimeImmutable($row['duedate']),
+            $groupName,
             (string)$row['identifier'],
             (int)$row['incarnation'],
             (string)$row['claimed']
@@ -116,18 +149,19 @@ class Scheduler
         }
         $delete = /** @lang MySQL */ '
             DELETE FROM ' . ScheduledJob::TABLE_NAME . '
-            WHERE identifier = :identifier
+            WHERE groupname = :groupname
+                  AND identifier = :identifier
                   AND claimed = :claimed
         ';
         $this->dbal
             ->executeQuery(
                 $delete,
                 [
+                    'groupname' => $job->getGroupName(),
                     'identifier' => $job->getIdentifier(),
                     'claimed' => $job->getClaimed(),
                 ]
             );
-
     }
 
     public function fail(ScheduledJob $job, string $reason): void
@@ -160,10 +194,12 @@ class Scheduler
 
     protected function scheduleJob(ScheduledJob $job): void
     {
-        $statement = '
+        $this->validateGroupName($job->getGroupName());
+
+        $statement = /** @lang MySQL */ '
             INSERT INTO ' . ScheduledJob::TABLE_NAME . '
-                (identifier, duedate, queue, job, incarnation, claimed)
-            VALUES (:identifier, :duedate, :queue, :job, :incarnation, :claimed)
+                (groupname, identifier, duedate, queue, job, incarnation, claimed)
+            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed)
             ON DUPLICATE KEY
                 UPDATE duedate = IF(:duedate < duedate, :duedate, duedate),
                        incarnation = :incarnation,
@@ -175,6 +211,7 @@ class Scheduler
             ->executeQuery(
                 $statement,
                 [
+                    'groupname' => $job->getGroupName(),
                     'identifier' => $job->getIdentifier(),
                     'duedate' => $job->getDuedate(),
                     'queue' => $job->getQueueName(),
@@ -183,6 +220,7 @@ class Scheduler
                     'claimed' => $job->getClaimed(),
                 ],
                 [
+                    'groupname' => Types::STRING,
                     'identifier' => Types::STRING,
                     'duedate' => Types::DATETIME_IMMUTABLE,
                     'queue' => Types::STRING,
@@ -193,5 +231,12 @@ class Scheduler
             );
         // TODO: Find a way to "trigger queueing" without cronjobs. Maybe "dynamic cronjobs" like "at".
         // TODO: On Shutdown: Add queueing job to job queue.
+    }
+
+    protected function validateGroupName(string $groupName): void
+    {
+        if (!in_array($groupName, $this->activeGroupNames, true)) {
+            throw new InvalidArgumentException(\sprintf('Group name "%s" is not active', $groupName), 1721393320);
+        }
     }
 }
