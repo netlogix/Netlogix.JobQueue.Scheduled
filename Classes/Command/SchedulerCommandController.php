@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Command;
 
 use Flowpack\JobQueue\Common\Job\JobManager;
+use Flowpack\JobQueue\Common\Queue\FakeQueue;
+use Flowpack\JobQueue\Common\Queue\Message;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
+use Netlogix\JobQueue\Scheduled\AsScheduledJob\SchedulingInformation;
+use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Retry;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
@@ -85,10 +89,11 @@ class SchedulerCommandController extends CommandController
 
         while ($next = $this->scheduler->next($groupName)) {
             try {
-                $this->jobManager->queue(
-                    $next->getQueueName(),
-                    $next->getJob()
-                );
+                if ($next->getQueueName() === SchedulingInformation::QUEUE_NAME) {
+                    $this->executeLocally($next);
+                } else {
+                    $this->executeInQueue($next);
+                }
                 $numberOfHandledJobs++;
                 $this->scheduler->release($next);
             } catch (\Throwable $throwable) {
@@ -99,5 +104,20 @@ class SchedulerCommandController extends CommandController
 
         $retry->scheduleAll();
         return $numberOfHandledJobs;
+    }
+
+    protected function executeLocally(ScheduledJob $scheduledJob): void
+    {
+        $job = $scheduledJob->getJob();
+        $message = new Message('3429a80d-1c21-433d-8d9f-82468b53fb2b', $job, 0);
+        $job->execute(new FakeQueue(SchedulingInformation::QUEUE_NAME), $message);
+    }
+
+    protected function executeInQueue(ScheduledJob $next): void
+    {
+        $this->jobManager->queue(
+            $next->getQueueName(),
+            $next->getJob()
+        );
     }
 }
