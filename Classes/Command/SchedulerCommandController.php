@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
+use Doctrine\DBAL\Exception\ConnectionLost;
+use Doctrine\ORM\EntityManagerInterface;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Flowpack\JobQueue\Common\Queue\FakeQueue;
 use Flowpack\JobQueue\Common\Queue\Message;
@@ -48,6 +50,16 @@ class SchedulerCommandController extends CommandController
     public function injectThrowableStorageInterface(ThrowableStorageInterface $throwableStorage): void
     {
         $this->throwableStorage = $throwableStorage;
+    }
+
+    public function injectEntityManager(EntityManagerInterface $entityManager): void
+    {
+        /*
+         * Find a better way to keep connections open. This might only work for MySQL.
+         */
+        $entityManager
+            ->getConnection()
+            ->exec('SET SESSION wait_timeout = 3600;');
     }
 
     /**
@@ -96,6 +108,10 @@ class SchedulerCommandController extends CommandController
                 }
                 $numberOfHandledJobs++;
                 $this->scheduler->release($next);
+            } catch(ConnectionLost $e) {
+                // Assuming we're running as supervisor process: Kill and restart
+                // The task in question might be stuck because they are claimed and we cannot release them
+                throw $e;
             } catch (\Throwable $throwable) {
                 $this->throwableStorage->logThrowable($throwable);
                 $retry->markJobForRescheduling($next);
