@@ -5,6 +5,7 @@ namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use DateTimeImmutable;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 class RetrievingTest extends TestCase
 {
@@ -25,7 +26,7 @@ class RetrievingTest extends TestCase
      */
     public function Without_scheduled_jobs_there_can_be_none_retrieved(): void
     {
-        $job = $this->scheduler->next();
+        $job = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
 
         self::assertNull($job);
     }
@@ -35,7 +36,7 @@ class RetrievingTest extends TestCase
      */
     public function Without_scheduled_jobs_none_can_be_found_by_identifier(): void
     {
-        self::assertFalse($this->scheduler->isScheduled('my-identifier'));
+        self::assertFalse($this->scheduler->isScheduled(Scheduler::DEFAULT_GROUP_NAME, 'my-identifier'));
     }
 
     /**
@@ -48,11 +49,12 @@ class RetrievingTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 $this->now->modify('+ 1 day'),
+                Scheduler::DEFAULT_GROUP_NAME,
                 'my-identifier'
             )
         );
 
-        self::assertTrue($this->scheduler->isScheduled('my-identifier'));
+        self::assertTrue($this->scheduler->isScheduled(Scheduler::DEFAULT_GROUP_NAME, 'my-identifier'));
     }
 
     /**
@@ -64,11 +66,12 @@ class RetrievingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                $this->now->modify('+ 1 day')
+                $this->now->modify('+ 1 day'),
+            Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
-        $retrievedJob = $this->scheduler->next();
+        $retrievedJob = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
 
         self::assertNull($retrievedJob);
     }
@@ -81,11 +84,12 @@ class RetrievingTest extends TestCase
         $scheduledJob = new ScheduledJob(
             self::getJobQueueJob(),
             self::getQueueName(),
-            $this->now->modify('- 1 day')
+            $this->now->modify('- 1 day'),
+            Scheduler::DEFAULT_GROUP_NAME
         );
         $this->scheduler->schedule($scheduledJob);
 
-        $retrievedJob = $this->scheduler->next();
+        $retrievedJob = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
 
         self::assertInstanceOf(ScheduledJob::class, $retrievedJob);
         assert($retrievedJob instanceof ScheduledJob);
@@ -101,12 +105,13 @@ class RetrievingTest extends TestCase
             new ScheduledJob(
                 self::getJobQueueJob(),
                 self::getQueueName(),
-                self::getDueDate()
+                self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
-        $retrievedJob1 = $this->scheduler->next();
-        $retrievedJob2 = $this->scheduler->next();
+        $retrievedJob1 = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
+        $retrievedJob2 = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
 
         self::assertNotNull($retrievedJob1);
         self::assertNull($retrievedJob2);
@@ -120,11 +125,12 @@ class RetrievingTest extends TestCase
         $scheduledJob = new ScheduledJob(
             self::getJobQueueJob(),
             self::getQueueName(),
-            $this->now->modify('- 1 day')
+            $this->now->modify('- 1 day'),
+            Scheduler::DEFAULT_GROUP_NAME
         );
         $this->scheduler->schedule($scheduledJob);
 
-        $retrievedJob = $this->scheduler->next();
+        $retrievedJob = $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
 
         self::assertInstanceOf(ScheduledJob::class, $retrievedJob);
         assert($retrievedJob instanceof ScheduledJob);

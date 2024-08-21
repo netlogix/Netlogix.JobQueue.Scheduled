@@ -1,0 +1,10 @@
+Flowpack:
+  JobQueue:
+    Common:
+      queues:
+
+        # For jobs being handled via "as scheduled", this queue immediately calls for execution
+
+        'netlogix-scheduled-fakequeue':
+          className: 'Flowpack\JobQueue\Common\Queue\FakeQueue'
+          executeIsolated: false

@@ -6,6 +6,7 @@ namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 class ReleaseTest extends TestCase
 {
@@ -30,6 +31,7 @@ class ReleaseTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             100,
             'claim'
@@ -53,6 +55,7 @@ class ReleaseTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             100
         );

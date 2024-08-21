@@ -12,7 +12,13 @@ use Neos\Flow\Utility\Algorithms;
 /**
  * @Flow\Entity
  * @Flow\Proxy(false)
- * @ORM\Table(name=ScheduledJob::TABLE_NAME)
+ * @ORM\Table(
+ *     name=ScheduledJob::TABLE_NAME,
+ *     indexes={
+ *          @ORM\Index(name="idx_groupname", columns={"groupname", "identifier"}),
+ *          @ORM\Index(name="idx_claimed", columns={"claimed", "identifier"})
+ *     }
+ * )
  */
 class ScheduledJob
 {
@@ -20,8 +26,14 @@ class ScheduledJob
 
     /**
      * @var string
-     * @ORM\Id
+     * @ORM\Column(name="groupname", length=36, options={"fixed": true, "default": "default"})
+     */
+    protected $groupName = 'default';
+
+    /**
+     * @var string
      * @Flow\Identity
+     * @ORM\Id
      */
     protected $identifier;
 
@@ -57,6 +69,7 @@ class ScheduledJob
         JobInterface $job,
         string $queue,
         DateTimeImmutable $duedate,
+        string $groupName,
         string $identifier = '',
         int $incarnation = 0,
         string $claimed = ''
@@ -64,9 +77,15 @@ class ScheduledJob
         $this->job = $job;
         $this->queue = $queue;
         $this->duedate = $duedate;
+        $this->groupName = $groupName;
         $this->identifier = $identifier ?: Algorithms::generateUUID();
         $this->incarnation = $incarnation;
         $this->claimed = $claimed;
+    }
+
+    public function getGroupName(): string
+    {
+        return $this->groupName;
     }
 
     public function getIdentifier(): string

@@ -104,3 +104,30 @@ This is currently done via cronjobs.
 The internal scheduling mechanism will make sure only those jobs are passed from the
 scheduler to the job queue which are "due" according to their individual due date
 values.
+
+
+## Automatically schedule jobs
+
+Some jobs originate from foreign applications. An example would be one flow app
+putting a job into a RabbitMQ and another flow app consuming it.
+
+Previously the only implementation would be a regular jobqueue worker, which neither
+provides a way to delay execution nor a deduplication feature.
+
+Now every job can simply implement the `ScheduledJobInterface`. When `execute()`
+is triggered, it's now moved over to a scheduled jobs queue.
+
+The job itself must provide all necessary details about how to schedule its execution.
+
+```php
+abstract class AutoScheduledJob implements ScheduledJobInterface, JobInterface {
+    public function getSchedulingInformation(): ?SchedulingInformation
+    {
+        return SchedulingInformation(
+            '97528fab-c199-4f87-b1a5-4074f1e98749',
+            'default-group',
+            new DateTimeImmutable('now')
+        );
+    }
+}
+```

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Tests\Fixture\JobQueueJob;
 
 class UniqueJobsTest extends TestCase
@@ -18,6 +19,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -40,6 +42,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -49,6 +52,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -68,6 +72,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -78,6 +83,7 @@ class UniqueJobsTest extends TestCase
                 $secondJob,
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -99,6 +105,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 $firstQueueName,
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -109,6 +116,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 $secondQueueName,
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -131,6 +139,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 $firstDueDate,
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -141,6 +150,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 $secondDueDate,
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -163,6 +173,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 $firstDueDate,
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );
@@ -173,6 +184,7 @@ class UniqueJobsTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 $secondDueDate,
+                Scheduler::DEFAULT_GROUP_NAME,
                 self::getJobIdentifier()
             )
         );

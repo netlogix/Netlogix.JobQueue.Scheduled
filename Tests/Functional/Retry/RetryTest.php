@@ -6,6 +6,7 @@ namespace Netlogix\JobQueue\Scheduled\Tests\Functional\Retry;
 use DateInterval;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Retry;
+use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 class RetryTest extends TestCase
 {
@@ -18,6 +19,7 @@ class RetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-identifier'
         );
 
@@ -37,12 +39,14 @@ class RetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier'
         );
         $jobB = new ScheduledJob(
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-second-identifier'
         );
 
@@ -65,6 +69,7 @@ class RetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier'
         );
 
@@ -89,6 +94,7 @@ class RetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             100,
             'claim'
@@ -119,6 +125,7 @@ class RetryTest extends TestCase
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
+            Scheduler::DEFAULT_GROUP_NAME,
             'my-first-identifier',
             100,
             'claim'
@@ -158,6 +165,7 @@ class RetryTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 'some-identifier',
                 1234567
             )
@@ -168,6 +176,7 @@ class RetryTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 'some-identifier'
             )
         );
@@ -190,6 +199,7 @@ class RetryTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 'some-identifier',
                 100
             )
@@ -200,6 +210,7 @@ class RetryTest extends TestCase
                 self::getJobQueueJob(),
                 self::getQueueName(),
                 self::getDueDate(),
+                Scheduler::DEFAULT_GROUP_NAME,
                 'some-identifier',
                 1000
             )

@@ -12,8 +12,11 @@
         "doctrine/dbal": "^2.9",
         "doctrine/orm": "^2.6",
         "flowpack/jobqueue-common": "^3.0",
-        "neos/flow": "^5.3 || ^6.3 || ^7.3 || ^8.0",
+        "neos/flow": "^6.3 || ^7.3 || ^8.0",
         "php": "^7.4 || ^8.0 || ^8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": ">=10.0"
     },
     "suggest": {
         "netlogix/supervisor": "Create supervisord programs that run the 'scheduler:pollforincomingjobs' command"
