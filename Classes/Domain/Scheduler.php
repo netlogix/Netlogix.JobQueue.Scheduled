@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use DateTimeImmutable;
-use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
-use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Neos\Flow\Utility\Algorithms;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
+use Netlogix\JobQueue\Scheduled\Service\Connection;
 
 use function array_filter;
 use function in_array;
@@ -36,18 +35,9 @@ class Scheduler
      */
     protected $timeBaseForDueDateCalculation;
 
-    /**
-     * Use the same database credentials as the entity manager but create
-     * a new connection. All SQL queries issued by the scheduler are meant
-     * to be atomic. Having the buried within application transactions hinders
-     * the synchronization of multiple parallel scheduler instances.
-     */
-    public function injectEntityManager(EntityManagerInterface $entityManager): void
+    public function injectConnection(Connection $connection): void
     {
-        $this->dbal = clone $entityManager->getConnection();
-        $this->dbal->close();
-        $this->dbal->setAutoCommit(true);
-        $this->dbal->connect();
+        $this->dbal = $connection;
     }
 
     public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
