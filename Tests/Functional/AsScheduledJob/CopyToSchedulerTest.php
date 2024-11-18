@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional\AsScheduledJob;
 
 use DateTimeImmutable;
-use Flowpack\JobQueue\Common\Job\JobInterface;
 use Flowpack\JobQueue\Common\Queue\FakeQueue;
 use Flowpack\JobQueue\Common\Queue\QueueInterface;
 use Neos\Flow\Aop\Advice\AdviceChain;
 use Neos\Flow\Aop\JoinPoint;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\CopyToScheduler;
+use Netlogix\JobQueue\Scheduled\AsScheduledJob\ExecuteNormally;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\SchedulingInformation;
+use Netlogix\JobQueue\Scheduled\AsScheduledJob\SkipExecution;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Tests\Functional\TestCase;
@@ -61,7 +62,7 @@ class CopyToSchedulerTest extends TestCase
     /**
      * @test
      */
-    public function Jobs_providing_no_scheduling_information_are_not_redirected(): void
+    public function Jobs_providing_ExecuteNormally_as_scheduling_information_are_not_redirected(): void
     {
         $job = $this->createMock(TestingScheduledJobInterface::class);
 
@@ -93,10 +94,51 @@ class CopyToSchedulerTest extends TestCase
         $job
             ->expects(self::once())
             ->method('getSchedulingInformation')
-            ->willReturn(null);
+            ->willReturn(new ExecuteNormally());
 
         $copyToSchedulerAspect = new CopyToScheduler();
         $copyToSchedulerAspect->execute($joinPoint);
+    }
+
+    /**
+     * @test
+     */
+    public function Jobs_providing_SkipExecution_as_scheduling_information_are_not_executed(): void
+    {
+        $job = $this->createMock(TestingScheduledJobInterface::class);
+
+        $joinPoint = $this->createMock(JoinPoint::class);
+        $joinPoint
+            ->expects(self::once())
+            ->method('getProxy')
+            ->willReturn($job);
+
+        $queue = $this->createMock(QueueInterface::class);
+
+        $joinPoint
+            ->expects(self::once())
+            ->method('getMethodArgument')
+            ->withAnyParameters('queue')
+            ->willReturn($queue);
+
+        $adviceChain = $this->createMock(AdviceChain::class);
+        $adviceChain
+            ->expects(self::never())
+            ->method('proceed');
+
+        $joinPoint
+            ->expects(self::never())
+            ->method('getAdviceChain');
+
+        $job
+            ->expects(self::once())
+            ->method('getSchedulingInformation')
+            ->willReturn(new SkipExecution());
+
+        $copyToSchedulerAspect = new CopyToScheduler();
+        $result = $copyToSchedulerAspect->execute($joinPoint);
+
+        $this->assertTrue($result);
     }
 
     /**
@@ -137,9 +179,9 @@ class CopyToSchedulerTest extends TestCase
             ->method('schedule')
             ->willReturnCallback(function (ScheduledJob $scheduledJob) use ($schedulingInformation) {
                 self::assertEquals(SchedulingInformation::QUEUE_NAME, $scheduledJob->getQueueName());
-                self::assertEquals($schedulingInformation->getIdentifier(), $scheduledJob->getIdentifier());
-                self::assertEquals($schedulingInformation->getGroupName(), $scheduledJob->getGroupName());
-                self::assertEquals($schedulingInformation->getDueDate(), $scheduledJob->getDueDate());
+                self::assertEquals($schedulingInformation->identifier, $scheduledJob->getIdentifier());
+                self::assertEquals($schedulingInformation->groupName, $scheduledJob->getGroupName());
+                self::assertEquals($schedulingInformation->dueDate, $scheduledJob->getDueDate());
             });
 
         $copyToSchedulerAspect = new CopyToScheduler();
