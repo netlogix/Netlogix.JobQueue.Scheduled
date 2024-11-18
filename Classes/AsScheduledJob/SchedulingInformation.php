@@ -15,25 +15,13 @@ final readonly class SchedulingInformation
 {
     public const QUEUE_NAME = 'netlogix-scheduled-fakequeue';
 
+    public DateTimeImmutable $dueDate;
+
     public function __construct(
-        private string $identifier,
-        private string $groupName = Scheduler::DEFAULT_GROUP_NAME,
-        private ?DateTimeImmutable $dueDate = null
+        public string $identifier,
+        public string $groupName = Scheduler::DEFAULT_GROUP_NAME,
+        ?DateTimeImmutable $dueDate = null
     ) {
-    }
-
-    public function getIdentifier(): string
-    {
-        return $this->identifier;
-    }
-
-    public function getGroupName(): string
-    {
-        return $this->groupName;
-    }
-
-    public function getDueDate(): DateTimeImmutable
-    {
-        return $this->dueDate ?? new DateTimeImmutable('now');
+        $this->dueDate = $dueDate ?? new DateTimeImmutable('now');
     }
 }

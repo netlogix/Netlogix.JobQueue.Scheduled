@@ -51,9 +51,9 @@ class CopyToScheduler
                 $scheduledJob = new ScheduledJob(
                     $job,
                     SchedulingInformation::QUEUE_NAME,
-                    $schedulingInformation->getDueDate(),
-                    $schedulingInformation->getGroupName(),
-                    $schedulingInformation->getIdentifier()
+                    $schedulingInformation->dueDate,
+                    $schedulingInformation->groupName,
+                    $schedulingInformation->identifier
                 );
                 $this->scheduler->schedule($scheduledJob);
                 return true;

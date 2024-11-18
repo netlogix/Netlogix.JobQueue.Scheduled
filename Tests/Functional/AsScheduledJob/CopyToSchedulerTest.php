@@ -179,9 +179,9 @@ class CopyToSchedulerTest extends TestCase
             ->method('schedule')
             ->willReturnCallback(function (ScheduledJob $scheduledJob) use ($schedulingInformation) {
                 self::assertEquals(SchedulingInformation::QUEUE_NAME, $scheduledJob->getQueueName());
-                self::assertEquals($schedulingInformation->getIdentifier(), $scheduledJob->getIdentifier());
-                self::assertEquals($schedulingInformation->getGroupName(), $scheduledJob->getGroupName());
-                self::assertEquals($schedulingInformation->getDueDate(), $scheduledJob->getDueDate());
+                self::assertEquals($schedulingInformation->identifier, $scheduledJob->getIdentifier());
+                self::assertEquals($schedulingInformation->groupName, $scheduledJob->getGroupName());
+                self::assertEquals($schedulingInformation->dueDate, $scheduledJob->getDueDate());
             });
 
         $copyToSchedulerAspect = new CopyToScheduler();
