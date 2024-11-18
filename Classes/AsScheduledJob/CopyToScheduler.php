@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\AsScheduledJob;
 
-
-use DateTimeImmutable;
-use Flowpack\JobQueue\Common\Job\JobInterface;
 use Flowpack\JobQueue\Common\Queue\FakeQueue;
-use Flowpack\JobQueue\Common\Queue\Message;
 use Flowpack\JobQueue\Common\Queue\QueueInterface;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Aop\JoinPointInterface;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
+use RuntimeException;
 
 /**
  * @Flow\Aspect
@@ -33,42 +30,39 @@ class CopyToScheduler
      */
     public function execute(JoinPointInterface $joinPoint): bool
     {
+        $proceed = fn() => $joinPoint->getAdviceChain()->proceed($joinPoint);
+
         $job = $joinPoint->getProxy();
-        assert($job instanceof JobInterface);
+        if (!$job instanceof ScheduledJobInterface) {
+            return $proceed();
+        }
 
         $queue = $joinPoint->getMethodArgument('queue');
         assert($queue instanceof QueueInterface);
 
         if ($queue instanceof FakeQueue && $queue->getName() === SchedulingInformation::QUEUE_NAME) {
             // This is the call done by the scheduling worker, so actually work on the job instead of scheduling it.
-            return $joinPoint->getAdviceChain()->proceed($joinPoint);
+            return $proceed();
         }
 
-        $scheduledJob = $this->convertMessageToScheduledJob($job);
-        if (!$scheduledJob) {
-            // The job decided to not provide scheduling information, so don't schedule it.
-            return $joinPoint->getAdviceChain()->proceed($joinPoint);
-        }
-
-        $this->scheduler->schedule($scheduledJob);
-
-        return true;
-    }
-
-    protected function convertMessageToScheduledJob(
-        ScheduledJobInterface $job
-    ): ?ScheduledJob {
-        assert($job instanceof JobInterface);
         $schedulingInformation = $job->getSchedulingInformation();
-        if ($schedulingInformation === null) {
-            return null;
+        switch (true) {
+            case $schedulingInformation instanceof SchedulingInformation:
+                $scheduledJob = new ScheduledJob(
+                    $job,
+                    SchedulingInformation::QUEUE_NAME,
+                    $schedulingInformation->getDueDate(),
+                    $schedulingInformation->getGroupName(),
+                    $schedulingInformation->getIdentifier()
+                );
+                $this->scheduler->schedule($scheduledJob);
+                return true;
+            case $schedulingInformation instanceof ExecuteNormally:
+                return $proceed();
+            case $schedulingInformation instanceof SkipExecution:
+                return true;
         }
-        return new ScheduledJob(
-            $job,
-            SchedulingInformation::QUEUE_NAME,
-            $schedulingInformation->getDueDate(),
-            $schedulingInformation->getGroupName(),
-            $schedulingInformation->getIdentifier()
-        );
+
+        throw new RuntimeException('Unknown scheduling information type: ' . get_class($schedulingInformation), 1731921027);
     }
 }

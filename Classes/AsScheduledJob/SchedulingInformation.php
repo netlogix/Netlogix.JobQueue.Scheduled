@@ -11,38 +11,29 @@ use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 /**
  * @Flow\Proxy(false))
  */
-final class SchedulingInformation
+final readonly class SchedulingInformation
 {
     public const QUEUE_NAME = 'netlogix-scheduled-fakequeue';
 
-    private $identifier;
-
-    private $groupName;
-
-    private $dueDate;
-
     public function __construct(
-        string $identifier,
-        string $groupName = Scheduler::DEFAULT_GROUP_NAME,
-        DateTimeImmutable $dueDate = null
+        private string $identifier,
+        private string $groupName = Scheduler::DEFAULT_GROUP_NAME,
+        private ?DateTimeImmutable $dueDate = null
     ) {
-        $this->identifier = $identifier;
-        $this->groupName = $groupName;
-        $this->dueDate = $dueDate;
     }
 
-    public function getIdentifier()
+    public function getIdentifier(): string
     {
         return $this->identifier;
     }
 
-    public function getGroupName()
+    public function getGroupName(): string
     {
         return $this->groupName;
     }
 
     public function getDueDate(): DateTimeImmutable
     {
-        return $this->dueDate ? $this->dueDate : new DateTimeImmutable('now');
+        return $this->dueDate ?? new DateTimeImmutable('now');
     }
 }
