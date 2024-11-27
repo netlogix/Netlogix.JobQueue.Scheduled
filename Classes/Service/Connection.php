@@ -7,6 +7,7 @@ namespace Netlogix\JobQueue\Scheduled\Service;
 use Doctrine\DBAL\Cache\QueryCacheProfile;
 use Doctrine\DBAL\Connection as DBALConnection;
 use Doctrine\DBAL\Exception\ConnectionLost;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -56,6 +57,28 @@ class Connection
     }
 
     /**
+     * Try and retry an SQL query in case of connection timeouts or retryable exceptions.
+     * This avoids multiple PING requests in rapid succession. Since all query performed
+     * are meant to be atomic anyway, there should be no lost data and no data
+     * duplication.
+     *
+     * @template T
+     * @param callable(): T $dbalInteraction
+     * @return T
+     */
+    protected function withAutoReconnectAndRetry(callable $dbalInteraction)
+    {
+        try {
+            return $dbalInteraction();
+        } catch (ConnectionLost) {
+            $this->dbal->connect();
+            return $dbalInteraction();
+        } catch (RetryableException) {
+            return $dbalInteraction();
+        }
+    }
+
+    /**
      * Try and retry an SQL query in case of connection timeouts. This avoids
      * multiple PING requests in rapid succession. Since all query performed
      * are meant to be atomic anyway, there should be no lost data and no data
@@ -64,14 +87,10 @@ class Connection
      * @template T
      * @param callable(): T $dbalInteraction
      * @return T
+     * @deprecated Use withAutoReconnectAndRetry instead. Will be removed at some point.
      */
     protected function withAutoReconnect(callable $dbalInteraction)
     {
-        try {
-            return $dbalInteraction();
-        } catch (ConnectionLost $e) {
-            $this->dbal->connect();
-            return $dbalInteraction();
-        }
+        return $this->withAutoReconnectAndRetry($dbalInteraction);
     }
 }
