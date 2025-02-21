@@ -25,6 +25,27 @@ class CopyToScheduler
         $this->scheduler = $scheduler;
     }
 
+    private static bool $forceNormalExecution = false;
+
+    /**
+     * Forces every job to not go through the scheduler, but execute immediately.
+     * This is useful for testing purposes.
+     *
+     * @template T
+     * @param callable(): T $callable
+     * @return T
+     */
+    public static function forceNormalExecution(callable $callable)
+    {
+        $executeNormally = self::$forceNormalExecution;
+        self::$forceNormalExecution = true;
+        try {
+            return $callable();
+        } finally {
+            self::$forceNormalExecution = $executeNormally;
+        }
+    }
+
     /**
      * @Flow\Around("within(Netlogix\JobQueue\Scheduled\AsScheduledJob\ScheduledJobInterface) && within(Flowpack\JobQueue\Common\Job\JobInterface) && method(.*->execute())")
      */
@@ -33,7 +54,7 @@ class CopyToScheduler
         $proceed = fn() => $joinPoint->getAdviceChain()->proceed($joinPoint);
 
         $job = $joinPoint->getProxy();
-        if (!$job instanceof ScheduledJobInterface) {
+        if (self::$forceNormalExecution || !$job instanceof ScheduledJobInterface) {
             return $proceed();
         }
 

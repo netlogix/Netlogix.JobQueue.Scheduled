@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional\AsScheduledJob;
 
 use DateTimeImmutable;
+use Flowpack\JobQueue\Common\Job\JobInterface;
 use Flowpack\JobQueue\Common\Queue\FakeQueue;
+use Flowpack\JobQueue\Common\Queue\Message;
 use Flowpack\JobQueue\Common\Queue\QueueInterface;
 use Neos\Flow\Aop\Advice\AdviceChain;
 use Neos\Flow\Aop\JoinPoint;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\CopyToScheduler;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\ExecuteNormally;
+use Netlogix\JobQueue\Scheduled\AsScheduledJob\ScheduledJobInterface;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\SchedulingInformation;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\SkipExecution;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
@@ -187,5 +190,63 @@ class CopyToSchedulerTest extends TestCase
         $copyToSchedulerAspect = new CopyToScheduler();
         $copyToSchedulerAspect->injectScheduler($scheduler);
         $copyToSchedulerAspect->execute($joinPoint);
+    }
+
+    /**
+     * @test
+     */
+    public function Using_the_scheduler_even_for_scheduled_jobs_can_be_omitted(): void
+    {
+        $job = new class implements ScheduledJobInterface, JobInterface {
+
+            public $executed = false;
+
+            public function execute(QueueInterface $queue, Message $message): bool
+            {
+                $this->executed = true;
+                return true;
+            }
+
+            public function getLabel(): string
+            {
+                return '';
+            }
+
+            public function getSchedulingInformation(): SchedulingInformation|ExecuteNormally|SkipExecution
+            {
+                return new SchedulingInformation('b86dcb7c-aefd-4078-8612-d856899f88bc');
+            }
+        };
+
+        $joinPoint = $this->createMock(JoinPoint::class);
+        $joinPoint
+            ->expects(self::once())
+            ->method('getProxy')
+            ->willReturn($job);
+
+        $adviceChain = $this->createMock(AdviceChain::class);
+        $adviceChain
+            ->expects(self::once())
+            ->method('proceed')
+            ->willReturnCallback(
+                fn () => $job->execute(
+                    $this->createMock(QueueInterface::class),
+                    $this->createMock(Message::class)
+                )
+            );
+
+        $joinPoint
+            ->expects(self::once())
+            ->method('getAdviceChain')
+            ->willReturn($adviceChain);
+
+        $copyToSchedulerAspect = new CopyToScheduler();
+
+        CopyToScheduler::forceNormalExecution(
+        // This is the part where no scheduler is used.
+            fn () => $copyToSchedulerAspect->execute($joinPoint)
+        );
+
+        self::assertTrue($job->executed);
     }
 }
