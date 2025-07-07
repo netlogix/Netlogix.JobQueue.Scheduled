@@ -81,15 +81,32 @@ class Scheduler
         $this->validateGroupName($groupName);
         $claim = Algorithms::generateUUID();
 
-        $update = /** @lang MySQL */
-            '
-            UPDATE ' . ScheduledJob::TABLE_NAME . '
+        $update =
+        /**
+         * Step 1: Create a derived table using the "idx_for_update" index
+         *         that only contains one row.
+         * Step 2: Join that row against the actual job to be claimed on
+         *         the primary key column.
+         * Step 3: UPDATE that row with the claim value.
+         *
+         * Otherwise, MySQL would use the "idx_groupname" index, fetch
+         * millions of rows, use a temp table to sort those millions
+         * and limit the result to the one row to be claimed.
+         *
+         * @lang MySQL
+         */
+        '
+            UPDATE (SELECT identifier
+                    FROM ' . ScheduledJob::TABLE_NAME . '
+                    WHERE duedate <= :now
+                      AND groupname = :groupname
+                      AND claimed = ""
+                    ORDER BY duedate ASC
+                    LIMIT 1) AS delinquents
+                INNER JOIN ' . ScheduledJob::TABLE_NAME . '
+                USING (identifier)
             SET claimed = :claimed
-            WHERE duedate <= :now
-                  AND groupname = :groupname
-                  AND claimed = ""
-            ORDER BY duedate ASC
-            LIMIT 1
+            WHERE claimed = ""
         ';
         $this->dbal
             ->executeQuery(
