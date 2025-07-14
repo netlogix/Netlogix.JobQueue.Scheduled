@@ -22,6 +22,10 @@ use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
  */
 class SchedulerCommandController extends CommandController
 {
+    private const TEN_MINUTES_IN_SECONDS = 600;
+
+    protected $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS;
+
     /**
      * @var Scheduler
      */
@@ -77,11 +81,10 @@ class SchedulerCommandController extends CommandController
     public function pollForIncomingJobsCommand(string $groupName): void
     {
         $startTime = time();
-        $oneHourInSeconds = 3600;
-        $endTime = $startTime + $oneHourInSeconds;
+        $endTime = $startTime + $this->stopPollingAfter;
 
         while (true) {
-            $numberOfHandledJobs = $this->queueDueJobs($groupName);
+            $numberOfHandledJobs = $this->queueDueJobs($groupName, $endTime);
             if (time() >= $endTime) {
                 return;
             }
@@ -92,9 +95,12 @@ class SchedulerCommandController extends CommandController
     }
 
     /**
+     * @param string $groupName Handle only jobs of this group
+     * @param int $endTime Stop handling new jobs once this time is reached
      * @return int Number of handled jobs
+     * @throws ConnectionLost
      */
-    protected function queueDueJobs(string $groupName): int
+    protected function queueDueJobs(string $groupName, int $endTime): int
     {
         $numberOfHandledJobs = 0;
         $retry = new Retry($this->scheduler);
@@ -115,6 +121,9 @@ class SchedulerCommandController extends CommandController
             } catch (\Throwable $throwable) {
                 $this->throwableStorage->logThrowable($throwable);
                 $retry->markJobForRescheduling($next);
+            }
+            if (time() >= $endTime) {
+                return $numberOfHandledJobs;
             }
         }
 
