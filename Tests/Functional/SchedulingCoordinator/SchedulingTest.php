@@ -1,14 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace Netlogix\JobQueue\Scheduled\Tests\Functional\Retry;
+namespace Netlogix\JobQueue\Scheduled\Tests\Functional\SchedulingCoordinator;
 
-use DateInterval;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
-use Netlogix\JobQueue\Scheduled\Domain\Retry;
+use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
-class RetryTest extends TestCase
+class SchedulingTest extends TestCase
 {
     /**
      * @test
@@ -23,7 +22,7 @@ class RetryTest extends TestCase
             'my-identifier'
         );
 
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
         $retry->markJobForRescheduling($job);
 
         $all = $this->findAll();
@@ -50,7 +49,7 @@ class RetryTest extends TestCase
             'my-second-identifier'
         );
 
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
         $retry->injectQueueManager($this->queueManager([]));
         $retry->markJobForRescheduling($jobA);
         $retry->markJobForRescheduling($jobB);
@@ -73,7 +72,7 @@ class RetryTest extends TestCase
             'my-first-identifier'
         );
 
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
         $retry->injectQueueManager($this->queueManager([]));
         $retry->markJobForRescheduling($job);
         $retry->scheduleAll();
@@ -102,7 +101,7 @@ class RetryTest extends TestCase
         $this->persistenceManager->add($job);
         $this->persistenceManager->persistAll();
 
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
         $retry->injectQueueManager($this->queueManager([
             'scheduledJobs' => [
                 'backoffStrategy' => 'linear',
@@ -133,7 +132,7 @@ class RetryTest extends TestCase
         $this->persistenceManager->add($job);
         $this->persistenceManager->persistAll();
 
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
         $retry->injectQueueManager($this->queueManager([
             'scheduledJobs' => [
                 'backoffStrategy' => 'linear',
