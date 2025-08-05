@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Netlogix\JobQueue\Scheduled\Tests\Functional\Retry;
+namespace Netlogix\JobQueue\Scheduled\Tests\Functional\SchedulingCoordinator;
 
 use DateInterval;
 use DateTimeImmutable;

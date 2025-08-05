@@ -14,7 +14,7 @@ use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Scheduled\AsScheduledJob\SchedulingInformation;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
-use Netlogix\JobQueue\Scheduled\Domain\Retry;
+use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
 /**
@@ -103,7 +103,7 @@ class SchedulerCommandController extends CommandController
     protected function queueDueJobs(string $groupName, int $endTime): int
     {
         $numberOfHandledJobs = 0;
-        $retry = new Retry($this->scheduler);
+        $retry = new SchedulingCoordinator($this->scheduler);
 
         while ($next = $this->scheduler->next($groupName)) {
             try {

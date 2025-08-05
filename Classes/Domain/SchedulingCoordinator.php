@@ -9,7 +9,7 @@ use LogicException;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 
-class Retry
+class SchedulingCoordinator
 {
     const DEFAULT_BACKOFF_STRATEGY = 'linear';
     const DEFAULT_NUMBER_OF_RETRIES = -1;
