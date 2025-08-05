@@ -4,8 +4,13 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\ORM\EntityManagerInterface;
+use Neos\Flow\Persistence\Doctrine\PersistenceManager;
+use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
+use Netlogix\JobQueue\Scheduled\Service\Connection;
 
 class RetrievingTest extends TestCase
 {
@@ -115,6 +120,34 @@ class RetrievingTest extends TestCase
 
         self::assertNotNull($retrievedJob1);
         self::assertNull($retrievedJob2);
+    }
+
+
+    /**
+     * @test
+     */
+    public function Retry_claiming_when_deadlock_exceptions_happen(): void
+    {
+        $connection = self::createMock(Connection::class);
+        $connection->expects(self::any())
+            ->method('executeQuery')
+            ->willThrowException(self::createStub(DeadlockException::class));
+
+        $this->scheduler->injectConnection($connection);
+
+        $start = microtime(true);
+        try {
+            $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
+        } catch (DeadlockException $e) {
+        }
+        $end = microtime(true);
+        $delta = $end - $start;
+
+        self::assertInstanceOf(DeadlockException::class, $e);
+
+        // guesstimated value is 15 and something.
+        self::assertGreaterThan(14, $delta);
+        self::assertLessThan(18, $delta);
     }
 
     /**

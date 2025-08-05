@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Types\Types;
 use InvalidArgumentException;
 use Neos\Flow\Utility\Algorithms;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
+use Netlogix\Retry\Retry;
 
 use function array_filter;
 use function in_array;
@@ -108,20 +110,26 @@ class Scheduler
             SET claimed = :claimed
             WHERE claimed = ""
         ';
-        $this->dbal
-            ->executeQuery(
-                $update,
-                [
-                    'now' => $this->timeBaseForDueDateCalculation->getNow(),
-                    'groupname' => $groupName,
-                    'claimed' => $claim,
-                ],
-                [
-                    'now' => Types::DATETIME_IMMUTABLE,
-                    'groupname' => Types::STRING,
-                    'claimed' => Types::STRING,
-                ]
-            );
+        (new Retry())
+            /**
+             * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
+             */
+            ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
+            ->onExceptionsOfType(RetryableException::class)
+            ->task(fn() => $this->dbal
+                ->executeQuery(
+                    $update,
+                    [
+                        'now' => $this->timeBaseForDueDateCalculation->getNow(),
+                        'groupname' => $groupName,
+                        'claimed' => $claim,
+                    ],
+                    [
+                        'now' => Types::DATETIME_IMMUTABLE,
+                        'groupname' => Types::STRING,
+                        'claimed' => Types::STRING,
+                    ]
+                ));
 
         $select = /** @lang MySQL */ '
             SELECT identifier, duedate, queue, job, incarnation, claimed
