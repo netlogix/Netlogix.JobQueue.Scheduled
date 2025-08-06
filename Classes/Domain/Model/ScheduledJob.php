@@ -17,8 +17,8 @@ use Neos\Flow\Utility\Algorithms;
  *     indexes={
  *          @ORM\Index(name="idx_groupname", columns={"groupname", "identifier"}),
  *          @ORM\Index(name="idx_claimed", columns={"claimed", "identifier"}),
- *          @ORM\Index(name="idx_for_retrieve", columns={"claimed", "groupname"}),
- *          @ORM\Index(name="idx_for_update", columns={"groupname", "claimed", "duedate"})
+ *          @ORM\Index(name="idx_for_retrieve", columns={"claimed", "groupname", "running"}),
+ *          @ORM\Index(name="idx_for_update", columns={"groupname", "claimed", "duedate", "running"})
  *     }
  * )
  */
@@ -67,6 +67,11 @@ class ScheduledJob
      */
     protected $claimed = '';
 
+    /**
+     * @var bool
+     */
+    protected $running = false;
+
     public function __construct(
         JobInterface $job,
         string $queue,
@@ -74,7 +79,8 @@ class ScheduledJob
         string $groupName,
         string $identifier = '',
         int $incarnation = 0,
-        string $claimed = ''
+        string $claimed = '',
+        bool $running = false
     ) {
         $this->job = $job;
         $this->queue = $queue;
@@ -83,6 +89,7 @@ class ScheduledJob
         $this->identifier = $identifier ?: Algorithms::generateUUID();
         $this->incarnation = $incarnation;
         $this->claimed = $claimed;
+        $this->running = $running;
     }
 
     public function getGroupName(): string
@@ -118,5 +125,10 @@ class ScheduledJob
     public function getClaimed(): string
     {
         return $this->claimed;
+    }
+
+    public function isRunning(): bool
+    {
+        return $this->running;
     }
 }

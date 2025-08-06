@@ -67,13 +67,14 @@ class Scheduler
     public function isScheduled(string $groupName, string $identifier): bool
     {
         $this->validateGroupName($groupName);
+        $tableName = ScheduledJob::TABLE_NAME;
 
-        $statement = '
-            SELECT 1 FROM ' . ScheduledJob::TABLE_NAME . '
+        $statement = <<<"MySQL"
+            SELECT 1 FROM {$tableName}
             WHERE identifier = :identifier
-            AND groupname = :groupname
-            AND claimed = ""
-       ';
+              AND groupname = :groupname
+              AND claimed = ""
+            MySQL;
 
         return $this->dbal->fetchOne($statement, ['identifier' => $identifier, 'groupname' => $groupName]) !== false;
     }
@@ -82,6 +83,7 @@ class Scheduler
     {
         $this->validateGroupName($groupName);
         $claim = Algorithms::generateUUID();
+        $tableName = ScheduledJob::TABLE_NAME;
 
         $update =
         /**
@@ -97,19 +99,21 @@ class Scheduler
          *
          * @lang MySQL
          */
-        '
+        <<<"MySQL"
             UPDATE (SELECT identifier
-                    FROM ' . ScheduledJob::TABLE_NAME . '
+                    FROM {$tableName}
                     WHERE duedate <= :now
                       AND groupname = :groupname
                       AND claimed = ""
+                      AND running = 0
                     ORDER BY duedate ASC
                     LIMIT 1) AS delinquents
-                INNER JOIN ' . ScheduledJob::TABLE_NAME . '
+                INNER JOIN {$tableName}
                 USING (identifier)
-            SET claimed = :claimed
+            SET claimed = :claimed,
+                running = 1
             WHERE claimed = ""
-        ';
+            MySQL;
         (new Retry())
             /**
              * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
@@ -131,12 +135,12 @@ class Scheduler
                     ]
                 ));
 
-        $select = /** @lang MySQL */ '
-            SELECT identifier, duedate, queue, job, incarnation, claimed
-            FROM ' . ScheduledJob::TABLE_NAME . '
+        $select = /** @lang MySQL */ <<<MySQL
+            SELECT identifier, duedate, queue, job, incarnation, claimed, running
+            FROM {$tableName}
             WHERE claimed = :claimed
-            AND groupname = :groupname
-        ';
+              AND groupname = :groupname
+            MySQL;
         $row = $this->dbal
             ->executeQuery(
                 $select,
@@ -162,7 +166,8 @@ class Scheduler
             $groupName,
             (string)$row['identifier'],
             (int)$row['incarnation'],
-            (string)$row['claimed']
+            (string)$row['claimed'],
+            (bool)$row['running']
         );
     }
 
@@ -171,13 +176,15 @@ class Scheduler
         if ($job->getClaimed() === '') {
             throw new InvalidArgumentException('Cannot release unclaimed jobs', 1657027508);
         }
-        $delete = /** @lang MySQL */ '
-            DELETE FROM ' . ScheduledJob::TABLE_NAME . '
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        $delete = /** @lang MySQL */ <<<"MySQL"
+            DELETE FROM {$tableName}
             WHERE groupname = :groupname
-                  AND identifier = :identifier
-                  AND claimed = :claimed
-        ';
-        $this->dbal
+              AND identifier = :identifier
+              AND claimed = :claimed
+            MySQL;
+        $deleteResult = $this->dbal
             ->executeQuery(
                 $delete,
                 [
@@ -186,6 +193,23 @@ class Scheduler
                     'claimed' => $job->getClaimed(),
                 ]
             );
+        if ($deleteResult->rowCount() === 0) {
+            $free = /** @lang MySQL */ <<<"MySQL"
+                UPDATE {$tableName}
+                SET running = 0
+                WHERE groupname = :groupname
+                  AND identifier = :identifier
+                  AND claimed = ""
+                MySQL;
+            $this->dbal
+                ->executeQuery(
+                    $free,
+                    [
+                        'groupname' => $job->getGroupName(),
+                        'identifier' => $job->getIdentifier(),
+                    ]
+                );
+        }
     }
 
     public function fail(ScheduledJob $job, string $reason): void
@@ -193,14 +217,16 @@ class Scheduler
         if ($job->getClaimed() === '') {
             throw new InvalidArgumentException('Cannot fail unclaimed jobs', 1718808398);
         }
+        $tableName = ScheduledJob::TABLE_NAME;
 
-        $update = /** @lang MySQL */ '
-            UPDATE ' . ScheduledJob::TABLE_NAME . '
-            SET claimed = :failed
+        $update = /** @lang MySQL */ <<<"MySQL"
+            UPDATE {$tableName}
+            SET claimed = :failed,
+                running = 0
             WHERE identifier = :identifier
-                  AND claimed = :claimed
+              AND claimed = :claimed
             LIMIT 1
-        ';
+        MySQL;
         $this->dbal
             ->executeQuery(
                 $update,
@@ -219,18 +245,19 @@ class Scheduler
     protected function scheduleJob(ScheduledJob $job): void
     {
         $this->validateGroupName($job->getGroupName());
+        $tableName = ScheduledJob::TABLE_NAME;
 
-        $statement = /** @lang MySQL */ '
-            INSERT INTO ' . ScheduledJob::TABLE_NAME . '
-                (groupname, identifier, duedate, queue, job, incarnation, claimed)
-            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed)
+        $statement = /** @lang MySQL */ <<<MySQL
+            INSERT INTO {$tableName}
+                (groupname, identifier, duedate, queue, job, incarnation, claimed, running)
+            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed, 0)
             ON DUPLICATE KEY
                 UPDATE duedate = IF(:duedate < duedate, :duedate, duedate),
                        incarnation = :incarnation,
                        queue    = :queue,
                        job      = :job,
                        claimed  = :claimed
-       ';
+            MySQL;
         $this->dbal
             ->executeQuery(
                 $statement,
@@ -242,6 +269,7 @@ class Scheduler
                     'job' => serialize($job->getJob()),
                     'incarnation' => $job->getIncarnation(),
                     'claimed' => $job->getClaimed(),
+                    'running' => $job->isRunning() ? 1 : 0,
                 ],
                 [
                     'groupname' => Types::STRING,
@@ -251,6 +279,7 @@ class Scheduler
                     'job' => Types::BLOB,
                     'incarnation' => Types::INTEGER,
                     'claimed' => Types::STRING,
+                    'running' => Types::BOOLEAN,
                 ]
             );
         // TODO: Find a way to "trigger queueing" without cronjobs. Maybe "dynamic cronjobs" like "at".
