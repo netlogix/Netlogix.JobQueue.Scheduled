@@ -250,9 +250,20 @@ class Scheduler
         $statement = /** @lang MySQL */ <<<MySQL
             INSERT INTO {$tableName}
                 (groupname, identifier, duedate, queue, job, incarnation, claimed, running)
-            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed, 0)
+            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed, :running)
             ON DUPLICATE KEY
-                UPDATE duedate = IF(:duedate < duedate, :duedate, duedate),
+                UPDATE
+                    duedate = CASE
+                           WHEN running = 1
+                               -- If the job is already running, this is "another one",
+                               -- so schedule the next one according to its own date.
+                               THEN :duedate
+                           WHEN duedate < :duedate
+                               -- If this reschedules a waiting job, use the lower value
+                               THEN duedate
+                           ELSE
+                               :duedate
+                       END,
                        incarnation = :incarnation,
                        queue    = :queue,
                        job      = :job,

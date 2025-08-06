@@ -39,14 +39,18 @@ class SchedulingTest extends TestCase
             self::getQueueName(),
             $this->now,
             Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier'
+            'my-first-identifier',
+            0,
+            'first-claim'
         );
         $jobB = new ScheduledJob(
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now,
             Scheduler::DEFAULT_GROUP_NAME,
-            'my-second-identifier'
+            'my-second-identifier',
+            0,
+            'second-claim'
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -69,7 +73,9 @@ class SchedulingTest extends TestCase
             self::getQueueName(),
             $this->now,
             Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier'
+            'my-first-identifier',
+            0,
+            'claim'
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
