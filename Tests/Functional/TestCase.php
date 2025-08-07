@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use DateTimeImmutable;
+use Doctrine\ORM\EntityManagerInterface;
 use Neos\Flow\Utility\Now;
 use Neos\Flow\Core\Bootstrap;
 use Neos\Flow\Persistence\QueryResultInterface;
@@ -27,6 +28,11 @@ class TestCase extends FunctionalTestCase
         $scheduler = $this->objectManager->get(Scheduler::class);
         assert($scheduler instanceof Scheduler);
         $this->scheduler = $scheduler;
+
+        $this->objectManager
+            ->get(EntityManagerInterface::class)
+            ->getConnection()
+            ->executeStatement('DELETE FROM ' . ScheduledJob::TABLE_NAME);
     }
 
     protected static function getJobQueueJob(): JobQueueJob

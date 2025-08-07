@@ -66,6 +66,7 @@ class SchedulingCoordinator
             return;
         }
 
+        $release = [];
         foreach ($this->jobs as $job) {
             $retryConfiguration = $this->getRetryConfigurationForJob($job);
 
@@ -107,6 +108,13 @@ class SchedulingCoordinator
                     );
             }
 
+            /*
+             * Schedule "another one":
+             * - the next due date is higher than the previous due date
+             * - the incarnation is incremented
+             * - this will clear the "claimed" tag
+             * - this will not reset the "running" flag
+             */
             $newJob = new ScheduledJob(
                 $job->getJob(),
                 $job->getQueueName(),
@@ -115,9 +123,15 @@ class SchedulingCoordinator
                 $job->getIdentifier(),
                 $nextIncarnation
             );
-
             $this->scheduler->schedule($newJob);
+
+            /*
+             * Release the jobs that were scheduled, so they are not
+             * claimed by another worker.
+             */
+            $this->scheduler->release($job);
         }
+        $this->jobs = [];
     }
 
     /**
