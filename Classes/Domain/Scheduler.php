@@ -269,30 +269,37 @@ class Scheduler
                        job      = :job,
                        claimed  = :claimed
             MySQL;
-        $this->dbal
-            ->executeQuery(
-                $statement,
-                [
-                    'groupname' => $job->getGroupName(),
-                    'identifier' => $job->getIdentifier(),
-                    'duedate' => $job->getDuedate(),
-                    'queue' => $job->getQueueName(),
-                    'job' => serialize($job->getJob()),
-                    'incarnation' => $job->getIncarnation(),
-                    'claimed' => $job->getClaimed(),
-                    'running' => $job->isRunning() ? 1 : 0,
-                ],
-                [
-                    'groupname' => Types::STRING,
-                    'identifier' => Types::STRING,
-                    'duedate' => Types::DATETIME_IMMUTABLE,
-                    'queue' => Types::STRING,
-                    'job' => Types::BLOB,
-                    'incarnation' => Types::INTEGER,
-                    'claimed' => Types::STRING,
-                    'running' => Types::BOOLEAN,
-                ]
-            );
+
+        (new Retry())
+            /**
+             * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.1
+             */
+            ->withExponentialBackoff(retryInterval: 0.05, maxRetries: 5)
+            ->onExceptionsOfType(RetryableException::class)
+            ->task(fn() => $this->dbal
+                ->executeQuery(
+                    $statement,
+                    [
+                        'groupname' => $job->getGroupName(),
+                        'identifier' => $job->getIdentifier(),
+                        'duedate' => $job->getDuedate(),
+                        'queue' => $job->getQueueName(),
+                        'job' => serialize($job->getJob()),
+                        'incarnation' => $job->getIncarnation(),
+                        'claimed' => $job->getClaimed(),
+                        'running' => $job->isRunning() ? 1 : 0,
+                    ],
+                    [
+                        'groupname' => Types::STRING,
+                        'identifier' => Types::STRING,
+                        'duedate' => Types::DATETIME_IMMUTABLE,
+                        'queue' => Types::STRING,
+                        'job' => Types::BLOB,
+                        'incarnation' => Types::INTEGER,
+                        'claimed' => Types::STRING,
+                        'running' => Types::BOOLEAN,
+                    ]
+                ));
         // TODO: Find a way to "trigger queueing" without cronjobs. Maybe "dynamic cronjobs" like "at".
         // TODO: On Shutdown: Add queueing job to job queue.
     }
