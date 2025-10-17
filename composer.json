@@ -9,10 +9,10 @@
         }
     },
     "require": {
-        "doctrine/dbal": "^2.9",
+        "doctrine/dbal": "^2.9 || ^3.1",
         "doctrine/orm": "^2.6",
         "flowpack/jobqueue-common": "^3.0",
-        "neos/flow": "~8.3",
+        "neos/flow": "~8.3 || ~9.0",
         "netlogix/retry": "~1.0",
         "php": "~8.2 || ~8.3"
     },
