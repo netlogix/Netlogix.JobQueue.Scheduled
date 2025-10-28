@@ -4,42 +4,24 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
-use Doctrine\DBAL\Exception\ConnectionLost;
-use Doctrine\ORM\EntityManagerInterface;
 use Flowpack\JobQueue\Common\Job\JobManager;
-use Flowpack\JobQueue\Common\Queue\FakeQueue;
-use Flowpack\JobQueue\Common\Queue\Message;
-use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
-use Netlogix\JobQueue\Scheduled\AsScheduledJob\SchedulingInformation;
-use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Pool\Pool;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
-/**
- * @Flow\Scope("singleton")
- */
 class SchedulerCommandController extends CommandController
 {
     private const TEN_MINUTES_IN_SECONDS = 600;
 
-    protected $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS;
+    private const TEN_MILLISECONDSS_IN_SECONDS = 0.01;
 
-    /**
-     * @var Scheduler
-     */
-    protected $scheduler;
+    protected Scheduler $scheduler;
 
-    /**
-     * @var JobManager
-     */
-    protected $jobManager;
+    protected JobManager $jobManager;
 
-    /**
-     * @var ThrowableStorageInterface
-     */
-    protected $throwableStorage;
+    protected ThrowableStorageInterface $throwableStorage;
 
     public function injectScheduler(Scheduler $scheduler): void
     {
@@ -56,93 +38,97 @@ class SchedulerCommandController extends CommandController
         $this->throwableStorage = $throwableStorage;
     }
 
-    public function injectEntityManager(EntityManagerInterface $entityManager): void
-    {
-        /*
-         * Find a better way to keep connections open. This might only work for MySQL.
-         */
-        $entityManager
-            ->getConnection()
-            ->exec('SET SESSION wait_timeout = 3600;');
-    }
-
-    /**
-     * Fetch due jobs and schedule them for execution.
-     */
-    public function queueDueJobsCommand(string $groupName): void
-    {
-        $this->queueDueJobs($groupName);
-    }
-
     /**
      * Fetch due jobs and schedule them, then wait and retry.
      * This is probably not the best way of polling for changes
+     *
+     * @param string $groupName Handle only jobs of this group
+     * @param bool $outputResults Write child process output to the console
+     * @param int $parallel Number of jobs to handle in parallel
+     * @param int $preforkSize Number of jobs to already boot up without having a job waiting
+     * @param int $stopPollingAfter Stop polling after this many seconds
      */
-    public function pollForIncomingJobsCommand(string $groupName): void
-    {
-        $startTime = time();
-        $endTime = $startTime + $this->stopPollingAfter;
+    public function pollForIncomingJobsCommand(
+        string $groupName,
+        bool $outputResults = false,
+        int $parallel = 1,
+        int $preforkSize = 0,
+        int $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS,
+    ): void {
+        $parallel = max($parallel, 1);
+        Pool::create(
+            outputResults: $outputResults,
+            preforkSize: $preforkSize
+        )
+            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, &$queueDueJobs): void {
+                // Check every 10 ms for new jobs and schedule as much as the pool has capacity for
+                $queueDueJobs = $pool->eventLoop->addPeriodicTimer(
+                    interval: self::TEN_MILLISECONDSS_IN_SECONDS,
+                    callback: function () use ($pool, $groupName, $parallel) {
+                        $this->queueDueJobs(pool: $pool, groupName: $groupName, parallel: $parallel);
+                    }
+                );
 
-        while (true) {
-            $numberOfHandledJobs = $this->queueDueJobs($groupName, $endTime);
-            if (time() >= $endTime) {
-                return;
-            }
-            if ($numberOfHandledJobs === 0) {
-                sleep(1);
-            }
-        }
+                // Keep the database connection alive
+                $ping = $pool->eventLoop->addPeriodicTimer(
+                    interval: 30,
+                    callback: function () use (&$ping) {
+                        $this->scheduler->ping();
+                    }
+                );
+
+                // Once the timeout is reached, wait until the final jobs are done and stop the loop
+                if ($stopPollingAfter) {
+                    $pool->eventLoop->addTimer(
+                        interval: $stopPollingAfter,
+                        callback: function () use ($pool, $queueDueJobs, $ping) {
+                            $pool->eventLoop->cancelTimer($queueDueJobs);
+                            $checkForPoolToClear = $pool->eventLoop->addPeriodicTimer(
+                                interval: 1,
+                                callback: function () use ($pool, $ping, &$checkForPoolToClear) {
+                                    if (count($pool) === 0) {
+                                        $pool->eventLoop->cancelTimer($ping);
+                                        $pool->eventLoop->cancelTimer($checkForPoolToClear);
+                                        $pool->eventLoop->stop();
+                                    }
+                                }
+                            );
+                        }
+                    );
+                }
+            });
     }
 
     /**
+     * @param Pool $pool A pool of subprocesses waiting for new jobs to execute
      * @param string $groupName Handle only jobs of this group
-     * @param int $endTime Stop handling new jobs once this time is reached
+     * @param int $parallel Number of jobs to handle in parallel
      * @return int Number of handled jobs
-     * @throws ConnectionLost
      */
-    protected function queueDueJobs(string $groupName, int $endTime): int
+    protected function queueDueJobs(Pool $pool, string $groupName, int $parallel): int
     {
         $numberOfHandledJobs = 0;
         $retry = new SchedulingCoordinator($this->scheduler);
 
-        while ($next = $this->scheduler->next($groupName)) {
-            try {
-                if ($next->getQueueName() === SchedulingInformation::QUEUE_NAME) {
-                    $this->executeLocally($next);
-                } else {
-                    $this->executeInQueue($next);
-                }
-                $numberOfHandledJobs++;
-                $this->scheduler->release($next);
-            } catch(ConnectionLost $e) {
-                // Assuming we're running as supervisor process: Kill and restart
-                // The task in question might be stuck because they are claimed and we cannot release them
-                throw $e;
-            } catch (\Throwable $throwable) {
-                $this->throwableStorage->logThrowable($throwable);
-                $retry->markJobForRescheduling($next);
-            }
-            if (time() >= $endTime) {
+        while (count($pool) < $parallel) {
+            $next = $this->scheduler->next($groupName);
+
+            if (!$next) {
                 return $numberOfHandledJobs;
             }
+
+            $numberOfHandledJobs++;
+
+            $process = $pool->runJob(job: $next->getJob(), queueName: $next->getQueueName());
+            $process->on(Pool::EVENT_EXIT, function () use ($retry, &$numberOfHandledJobs) {
+                $numberOfHandledJobs--;
+                if ($numberOfHandledJobs === 0) {
+                    ($numberOfHandledJobs === 0) && $retry->scheduleAll();
+                }
+            });
+            $process->on(Pool::EVENT_SUCCESS, fn () => $this->scheduler->release($next));
+            $process->on(Pool::EVENT_ERROR, fn () => $retry->markJobForRescheduling($next));
         }
-
-        $retry->scheduleAll();
         return $numberOfHandledJobs;
-    }
-
-    protected function executeLocally(ScheduledJob $scheduledJob): void
-    {
-        $job = $scheduledJob->getJob();
-        $message = new Message('3429a80d-1c21-433d-8d9f-82468b53fb2b', $job, 0);
-        $job->execute(new FakeQueue(SchedulingInformation::QUEUE_NAME), $message);
-    }
-
-    protected function executeInQueue(ScheduledJob $next): void
-    {
-        $this->jobManager->queue(
-            $next->getQueueName(),
-            $next->getJob()
-        );
     }
 }

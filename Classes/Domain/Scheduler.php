@@ -79,6 +79,11 @@ class Scheduler
         return $this->dbal->fetchOne($statement, ['identifier' => $identifier, 'groupname' => $groupName]) !== false;
     }
 
+    public function ping(): void
+    {
+        $this->dbal->ping();
+    }
+
     public function next(string $groupName): ?ScheduledJob
     {
         $this->validateGroupName($groupName);

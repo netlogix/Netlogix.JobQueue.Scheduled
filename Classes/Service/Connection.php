@@ -44,16 +44,21 @@ class Connection
 
     public function fetchOne(string $query, array $params = [], array $types = [])
     {
-        return $this->withAutoReconnect(function () use ($query, $params, $types) {
+        return $this->withAutoReconnectAndRetry(function () use ($query, $params, $types) {
             return $this->dbal->fetchOne($query, $params, $types);
         });
     }
 
     public function executeQuery($sql, array $params = [], $types = [], ?QueryCacheProfile $qcp = null)
     {
-        return $this->withAutoReconnect(function () use ($sql, $params, $types, $qcp) {
+        return $this->withAutoReconnectAndRetry(function () use ($sql, $params, $types, $qcp) {
             return $this->dbal->executeQuery($sql, $params, $types, $qcp);
         });
+    }
+
+    public function ping(): void
+    {
+        $this->dbal->fetchOne($this->dbal->getDatabasePlatform()->getDummySelectSQL());
     }
 
     /**

@@ -60,13 +60,8 @@ class SchedulingCoordinator
         $this->jobs[] = $job;
     }
 
-    public function scheduleAll(): void
+    public function scheduleAll(): int
     {
-        if (!$this->jobs) {
-            return;
-        }
-
-        $release = [];
         foreach ($this->jobs as $job) {
             $retryConfiguration = $this->getRetryConfigurationForJob($job);
 
@@ -131,7 +126,9 @@ class SchedulingCoordinator
              */
             $this->scheduler->release($job);
         }
+        $count = count($this->jobs);
         $this->jobs = [];
+        return $count;
     }
 
     /**
