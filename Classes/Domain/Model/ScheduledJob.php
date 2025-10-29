@@ -30,7 +30,7 @@ class ScheduledJob
      * @var string
      * @ORM\Column(name="groupname", length=36, options={"fixed": true, "default": "default"})
      */
-    protected $groupName = 'default';
+    protected string $groupName = 'default';
 
     /**
      * @var string
@@ -43,6 +43,11 @@ class ScheduledJob
      * @var DateTimeImmutable
      */
     protected $duedate;
+
+    /**
+     * @var DateTimeImmutable
+     */
+    protected $activity;
 
     /**
      * @var string
@@ -85,6 +90,7 @@ class ScheduledJob
         $this->job = $job;
         $this->queue = $queue;
         $this->duedate = $duedate;
+        $this->activity = new DateTimeImmutable();
         $this->groupName = $groupName;
         $this->identifier = $identifier ?: Algorithms::generateUUID();
         $this->incarnation = $incarnation;

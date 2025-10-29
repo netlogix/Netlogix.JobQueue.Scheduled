@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
+use Doctrine\DBAL\Types\Types;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Pool\Pool;
+use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
+use Netlogix\JobQueue\Scheduled\Service\Connection;
 
 class SchedulerCommandController extends CommandController
 {
@@ -22,6 +25,8 @@ class SchedulerCommandController extends CommandController
     protected JobManager $jobManager;
 
     protected ThrowableStorageInterface $throwableStorage;
+
+    protected Connection $dbal;
 
     public function injectScheduler(Scheduler $scheduler): void
     {
@@ -38,11 +43,54 @@ class SchedulerCommandController extends CommandController
         $this->throwableStorage = $throwableStorage;
     }
 
+    public function injectConnection(Connection $connection): void
+    {
+        $this->dbal = $connection;
+    }
+
+    /**
+     * Reset stale jobs that have not changed for too long.
+     *
+     * @param string $groupName Free jobs in this group only
+     * @param int $minutes Count jobs as stale if their last activity was more than these many minutes ago
+     */
+    public function resetStaleJobsCommand(
+        string $groupName,
+        int $minutes = 10
+    ): void {
+        $tableName = ScheduledJob::TABLE_NAME;
+        $freed = $this->dbal->executeQuery(
+            sql: <<<MySQL
+                UPDATE {$tableName}
+                SET running = 0,
+                    claimed = '',
+                    incarnation = incarnation + 1
+                WHERE running = 1
+                  AND claimed != ''
+                  AND claimed NOT LIKE 'failed(%)'
+                  AND groupname = :groupName
+                  AND activity < NOW() - INTERVAL :minutes MINUTE
+                MySQL,
+            params: [
+                'groupName' => $groupName,
+                'minutes' => max($minutes, 1),
+            ],
+            types: [
+                'groupName' => Types::STRING,
+                'minutes' => Types::SMALLINT,
+            ],
+        )->rowCount();
+
+        if ($freed) {
+            $this->outputLine('Freed ' . $freed . ' stale jobs.');
+        }
+    }
+
     /**
      * Fetch due jobs and schedule them, then wait and retry.
      * This is probably not the best way of polling for changes
      *
-     * @param string $groupName Handle only jobs of this group
+     * @param string $groupName Handle jobs in this group only
      * @param bool $outputResults Write child process output to the console
      * @param int $parallel Number of jobs to handle in parallel
      * @param int $preforkSize Number of jobs to already boot up without having a job waiting
@@ -120,7 +168,18 @@ class SchedulerCommandController extends CommandController
             $numberOfHandledJobs++;
 
             $process = $pool->runJob(job: $next->getJob(), queueName: $next->getQueueName());
-            $process->on(Pool::EVENT_EXIT, function () use ($retry, &$numberOfHandledJobs) {
+
+            $ping = $pool->eventLoop->addPeriodicTimer(
+                interval: 1,
+                callback: function () use ($process, $next) {
+                    if ($process->isRunning()) {
+                        $this->scheduler->activity($next);
+                    }
+                }
+            );
+
+            $process->on(Pool::EVENT_EXIT, function () use ($pool, $retry, $ping, &$numberOfHandledJobs) {
+                $pool->eventLoop->cancelTimer($ping);
                 $numberOfHandledJobs--;
                 if ($numberOfHandledJobs === 0) {
                     ($numberOfHandledJobs === 0) && $retry->scheduleAll();

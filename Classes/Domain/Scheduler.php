@@ -116,7 +116,8 @@ class Scheduler
                 INNER JOIN {$tableName}
                 USING (identifier)
             SET claimed = :claimed,
-                running = 1
+                running = 1,
+                activity = NOW()
             WHERE claimed = ""
             MySQL;
         (new Retry())
@@ -201,7 +202,8 @@ class Scheduler
         if ($deleteResult->rowCount() === 0) {
             $free = /** @lang MySQL */ <<<"MySQL"
                 UPDATE {$tableName}
-                SET running = 0
+                SET running = 0,
+                    activity = NOW()
                 WHERE groupname = :groupname
                   AND identifier = :identifier
                   AND claimed = ""
@@ -227,7 +229,8 @@ class Scheduler
         $update = /** @lang MySQL */ <<<"MySQL"
             UPDATE {$tableName}
             SET claimed = :failed,
-                running = 0
+                running = 0,
+                activity = NOW()
             WHERE identifier = :identifier
               AND claimed = :claimed
             LIMIT 1
@@ -243,6 +246,32 @@ class Scheduler
                 [
                     'identifier' => Types::STRING,
                     'claimed' => Types::STRING,
+                    'failed' => Types::STRING,
+                ]
+            );
+    }
+
+    public function activity(ScheduledJob $job): void
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        $update = /** @lang MySQL */ <<<"MySQL"
+            UPDATE {$tableName}
+            SET activity = NOW()
+            WHERE identifier = :identifier
+              AND claimed = :claimed
+            LIMIT 1
+        MySQL;
+        $this->dbal
+            ->executeQuery(
+                $update,
+                [
+                    'identifier' => $job->getIdentifier(),
+                    'claimed' => $job->getClaimed(),
+                ],
+                [
+                    'identifier' => Types::STRING,
+                    'claimed' => Types::STRING,
                 ]
             );
     }
@@ -254,8 +283,8 @@ class Scheduler
 
         $statement = /** @lang MySQL */ <<<MySQL
             INSERT INTO {$tableName}
-                (groupname, identifier, duedate, queue, job, incarnation, claimed, running)
-            VALUES (:groupname, :identifier, :duedate, :queue, :job, :incarnation, :claimed, :running)
+                (groupname, identifier, duedate, activity, queue, job, incarnation, claimed, running)
+            VALUES (:groupname, :identifier, :duedate, NOW(), :queue, :job, :incarnation, :claimed, :running)
             ON DUPLICATE KEY
                 UPDATE
                     duedate = CASE
