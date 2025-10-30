@@ -14,12 +14,12 @@ class SchedulingTest extends TestCase
      */
     public function Marking_a_job_for_rescheduling_does_not_schedule_it(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-identifier'
+        $job = ScheduledJob::createNew(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-identifier'
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -34,23 +34,25 @@ class SchedulingTest extends TestCase
      */
     public function Marking_a_job_for_rescheduling_and_scheduling_all_does_not_schedule_them(): void
     {
-        $jobA = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
-            'first-claim'
+        $jobA = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 0,
+            claimed: 'first-claim',
+            running: false
         );
-        $jobB = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-second-identifier',
-            0,
-            'second-claim'
+        $jobB = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-second-identifier',
+            incarnation: 0,
+            claimed: 'second-claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -68,14 +70,15 @@ class SchedulingTest extends TestCase
      */
     public function Rescheduling_a_job_only_increases_its_incarnation(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
-            'claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 0,
+            claimed: 'claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -95,14 +98,15 @@ class SchedulingTest extends TestCase
      */
     public function Expired_jobs_get_removed(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            100,
-            'claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 100,
+            claimed: 'claim',
+            running: false
         );
         $this->persistenceManager->add($job);
         $this->persistenceManager->persistAll();
@@ -126,14 +130,15 @@ class SchedulingTest extends TestCase
      */
     public function Expired_jobs_are_kept_if_the_queue_has_it_configured(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            100,
-            'claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 100,
+            claimed: 'claim',
+            running: false
         );
         $this->persistenceManager->add($job);
         $this->persistenceManager->persistAll();
@@ -166,23 +171,28 @@ class SchedulingTest extends TestCase
     public function Scheduling_a_resh_job_resets_the_incarnation_count(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                'some-identifier',
-                1234567
+            ScheduledJob::createInternal(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: 'some-identifier',
+                incarnation: 1234567,
+                claimed: '',
+                running: false
             )
         );
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                'some-identifier'
+            ScheduledJob::createInternal(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: 'some-identifier',
+                incarnation: 0,
+                claimed: '',
+                running: false
             )
         );
 
@@ -200,24 +210,25 @@ class SchedulingTest extends TestCase
     public function Rescheduling_a_job_does_not_reset_the_incarnation_count(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                'some-identifier',
-                100
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: 'some-identifier',
             )
         );
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                'some-identifier',
-                1000
+            ScheduledJob::createInternal(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: 'some-identifier',
+                incarnation: 1000,
+                claimed: '',
+                running: false
             )
         );
 

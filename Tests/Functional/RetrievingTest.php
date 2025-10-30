@@ -12,6 +12,8 @@ use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
 
+use function serialize;
+
 class RetrievingTest extends TestCase
 {
     /**
@@ -50,12 +52,12 @@ class RetrievingTest extends TestCase
     public function Scheduled_jobs_can_be_found_by_identifier(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $this->now->modify('+ 1 day'),
-                Scheduler::DEFAULT_GROUP_NAME,
-                'my-identifier'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $this->now->modify('+ 1 day'),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: 'my-identifier'
             )
         );
 
@@ -68,11 +70,11 @@ class RetrievingTest extends TestCase
     public function Future_due_jobs_can_not_be_retrieved_yet(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $this->now->modify('+ 1 day'),
-            Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $this->now->modify('+ 1 day'),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
             )
         );
 
@@ -86,7 +88,7 @@ class RetrievingTest extends TestCase
      */
     public function Past_due_jobs_can_be_retrieved(): void
     {
-        $scheduledJob = new ScheduledJob(
+        $scheduledJob = ScheduledJob::createNew(
             self::getJobQueueJob(),
             self::getQueueName(),
             $this->now->modify('- 1 day'),
@@ -107,11 +109,11 @@ class RetrievingTest extends TestCase
     public function Scheduled_jobs_can_be_retrieved_only_once(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -155,11 +157,11 @@ class RetrievingTest extends TestCase
      */
     public function Scheduled_jobs_are_claimed(): void
     {
-        $scheduledJob = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now->modify('- 1 day'),
-            Scheduler::DEFAULT_GROUP_NAME
+        $scheduledJob = ScheduledJob::createNew(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now->modify('- 1 day'),
+            groupName: Scheduler::DEFAULT_GROUP_NAME
         );
         $this->scheduler->schedule($scheduledJob);
 

@@ -25,11 +25,11 @@ class SchedulingTest extends TestCase
     public function A_scheduled_job_gets_persisted(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -44,11 +44,11 @@ class SchedulingTest extends TestCase
     public function Scheduled_jobs_contain_JobQueue_jobs(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -67,11 +67,11 @@ class SchedulingTest extends TestCase
     public function Scheduled_jobs_contain_queue_names(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -90,11 +90,11 @@ class SchedulingTest extends TestCase
     public function Scheduled_jobs_contain_due_dates(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
             )
         );
 
@@ -122,11 +122,11 @@ class SchedulingTest extends TestCase
         $start = microtime(true);
         try {
             $this->scheduler->schedule(
-                new ScheduledJob(
-                    self::getJobQueueJob(),
-                    self::getQueueName(),
-                    self::getDueDate(),
-                    Scheduler::DEFAULT_GROUP_NAME
+                ScheduledJob::createNew(
+                    job: self::getJobQueueJob(),
+                    queue: self::getQueueName(),
+                    duedate: self::getDueDate(),
+                    groupName: Scheduler::DEFAULT_GROUP_NAME
                 )
             );
         } catch (DeadlockException $e) {

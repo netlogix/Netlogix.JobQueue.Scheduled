@@ -38,22 +38,22 @@ class RetrievingTest extends TestCase
     public function Additional_groups_dont_interfere_with_default_group_jobs(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                'default',
-                'default-job-identifier'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: 'default',
+                identifier: 'default-job-identifier'
             )
         );
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                'additional-group',
-                'additional-job-identifier'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: 'additional-group',
+                identifier: 'additional-job-identifier'
             )
         );
 
@@ -72,22 +72,22 @@ class RetrievingTest extends TestCase
     public function Default_group_jobs_are_not_covered_by_additional_group_workers(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                'default',
-                'default-job-identifier'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: 'default',
+                identifier: 'default-job-identifier'
             )
         );
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                'additional-group',
-                'additional-job-identifier'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: 'additional-group',
+                identifier: 'additional-job-identifier'
             )
         );
 

@@ -167,7 +167,7 @@ class SchedulerCommandController extends CommandController
 
             $numberOfHandledJobs++;
 
-            $process = $pool->runJob(job: $next->getJob(), queueName: $next->getQueueName());
+            $process = $pool->runPayload(payload: $next->getSerializedJob(), queueName: $next->getQueueName());
 
             $ping = $pool->eventLoop->addPeriodicTimer(
                 interval: 1,

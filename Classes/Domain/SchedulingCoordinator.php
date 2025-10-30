@@ -106,19 +106,10 @@ class SchedulingCoordinator
             /*
              * Schedule "another one":
              * - the next due date is higher than the previous due date
-             * - the incarnation is incremented
              * - this will clear the "claimed" tag
              * - this will not reset the "running" flag
              */
-            $newJob = new ScheduledJob(
-                $job->getJob(),
-                $job->getQueueName(),
-                $nextDueDate,
-                $job->getGroupName(),
-                $job->getIdentifier(),
-                $nextIncarnation
-            );
-            $this->scheduler->schedule($newJob);
+            $this->scheduler->schedule($job->forRescheduling(duedate: $nextDueDate));
 
             /*
              * Release the jobs that were scheduled, so they are not

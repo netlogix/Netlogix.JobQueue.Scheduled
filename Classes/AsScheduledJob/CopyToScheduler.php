@@ -69,7 +69,7 @@ class CopyToScheduler
         $schedulingInformation = $job->getSchedulingInformation();
         switch (true) {
             case $schedulingInformation instanceof SchedulingInformation:
-                $scheduledJob = new ScheduledJob(
+                $scheduledJob = ScheduledJob::createNew(
                     $job,
                     SchedulingInformation::QUEUE_NAME,
                     $schedulingInformation->dueDate,
