@@ -18,8 +18,6 @@ class SchedulerCommandController extends CommandController
 {
     private const TEN_MINUTES_IN_SECONDS = 600;
 
-    private const TEN_MILLISECONDSS_IN_SECONDS = 0.01;
-
     protected Scheduler $scheduler;
 
     protected JobManager $jobManager;
@@ -95,6 +93,7 @@ class SchedulerCommandController extends CommandController
      * @param int $parallel Number of jobs to handle in parallel
      * @param int $preforkSize Number of jobs to already boot up without having a job waiting
      * @param int $stopPollingAfter Stop polling after this many seconds
+     * @param float $pollingIntervalInSeconds How often to check for new jobs in seconds
      */
     public function pollForIncomingJobsCommand(
         string $groupName,
@@ -102,16 +101,17 @@ class SchedulerCommandController extends CommandController
         int $parallel = 1,
         int $preforkSize = 0,
         int $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS,
+        float $pollingIntervalInSeconds = 0.1
     ): void {
         $parallel = max($parallel, 1);
         Pool::create(
             outputResults: $outputResults,
             preforkSize: $preforkSize
         )
-            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, &$queueDueJobs): void {
-                // Check every 10 ms for new jobs and schedule as much as the pool has capacity for
+            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, $pollingIntervalInSeconds, &$queueDueJobs): void {
+                // Check for new jobs in the database and schedule as much as the pool has capacity for
                 $queueDueJobs = $pool->eventLoop->addPeriodicTimer(
-                    interval: self::TEN_MILLISECONDSS_IN_SECONDS,
+                    interval: $pollingIntervalInSeconds,
                     callback: function () use ($pool, $groupName, $parallel) {
                         $this->queueDueJobs(pool: $pool, groupName: $groupName, parallel: $parallel);
                     }
