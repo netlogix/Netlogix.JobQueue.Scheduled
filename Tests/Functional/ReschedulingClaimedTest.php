@@ -75,13 +75,12 @@ class ReschedulingClaimedTest extends TestCase
 
     protected function job(): ScheduledJob
     {
-        return new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->objectManager->get(Now::class),
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
+        return ScheduledJob::createNew(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->objectManager->get(Now::class),
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier'
         );
     }
 }

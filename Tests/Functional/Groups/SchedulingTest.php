@@ -15,11 +15,11 @@ class SchedulingTest extends TestCase
     public function Scheduling_works_for_different_groups(): void
     {
         $scheduledJob = fn(string $groupName) => $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                $groupName
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: $groupName
             )
         );
         $scheduledJob('default');
@@ -37,11 +37,11 @@ class SchedulingTest extends TestCase
         self::expectExceptionMessage('Group name "non-existing-group" is not active');
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                'non-existing-group'
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: 'non-existing-group'
             )
         );
     }

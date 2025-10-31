@@ -14,14 +14,15 @@ class ExponentialRetryTest extends TestCase
      */
     public function Jobs_with_no_retries_dont_get_rescheduled(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
-            'some-claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 0,
+            claimed: 'some-claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -44,25 +45,27 @@ class ExponentialRetryTest extends TestCase
     public function Jobs_with_negative_retries_get_retried_infinitely(): void
     {
         $incarnation = pow(2, 15);
-        $initialJob = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            $incarnation,
-            'first-claim'
+        $initialJob = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: $incarnation,
+            claimed: 'first-claim',
+            running: false
         );
         $this->scheduler->schedule($initialJob);
 
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            $incarnation,
-            'second-claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: $incarnation,
+            claimed: 'second-claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -85,25 +88,27 @@ class ExponentialRetryTest extends TestCase
     public function Default_interval_is_zero(): void
     {
         $incarnation = pow(2, 15);
-        $initialJob = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
-            'first-claim'
+        $initialJob = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 0,
+            claimed: 'first-claim',
+            running: false
         );
         $this->scheduler->schedule($initialJob);
 
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            $incarnation,
-            'second-claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: $incarnation,
+            claimed: 'second-claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -130,26 +135,27 @@ class ExponentialRetryTest extends TestCase
     {
         $retryInterval = 100;
 
-        $initialJob = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            0,
-            '',
-            true
+        $initialJob = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 0,
+            claimed: '',
+            running: true
         );
         $this->scheduler->schedule($initialJob);
 
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            $incarnation,
-            'second-claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: $incarnation,
+            claimed: 'second-claim',
+            running: false
         );
         $retry = new SchedulingCoordinator($this->scheduler);
         $retry->injectQueueManager($this->queueManager([
@@ -199,14 +205,15 @@ class ExponentialRetryTest extends TestCase
      */
     public function Retries_are_skipped_after_limit_is_reached(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            10,
-            'some-claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 10,
+            claimed: 'some-claim',
+            running: false
         );
 
         $retry = new SchedulingCoordinator($this->scheduler);

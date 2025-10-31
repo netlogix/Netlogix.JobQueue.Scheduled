@@ -165,15 +165,15 @@ class Scheduler
             return null;
         }
 
-        return new ScheduledJob(
-            unserialize($row['job']),
-            $row['queue'],
-            new DateTimeImmutable($row['duedate']),
-            $groupName,
-            (string)$row['identifier'],
-            (int)$row['incarnation'],
-            (string)$row['claimed'],
-            (bool)$row['running']
+        return ScheduledJob::createInternal(
+            job: $row['job'],
+            queue: $row['queue'],
+            duedate: new DateTimeImmutable($row['duedate']),
+            groupName: $groupName,
+            identifier: (string)$row['identifier'],
+            incarnation: (int)$row['incarnation'],
+            claimed: (string)$row['claimed'],
+            running: (bool)$row['running']
         );
     }
 
@@ -318,7 +318,7 @@ class Scheduler
                         'identifier' => $job->getIdentifier(),
                         'duedate' => $job->getDuedate(),
                         'queue' => $job->getQueueName(),
-                        'job' => serialize($job->getJob()),
+                        'job' => $job->getSerializedJob(),
                         'incarnation' => $job->getIncarnation(),
                         'claimed' => $job->getClaimed(),
                         'running' => $job->isRunning() ? 1 : 0,

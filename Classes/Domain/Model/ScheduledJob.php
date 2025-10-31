@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Domain\Model;
@@ -6,8 +7,18 @@ namespace Netlogix\JobQueue\Scheduled\Domain\Model;
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
 use Flowpack\JobQueue\Common\Job\JobInterface;
+use InvalidArgumentException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Utility\Algorithms;
+
+use function fopen;
+use function fputs;
+use function is_object;
+use function is_resource;
+use function is_string;
+use function serialize;
+use function stream_get_contents;
+use function unserialize;
 
 /**
  * @Flow\Entity
@@ -55,8 +66,8 @@ class ScheduledJob
     protected $queue;
 
     /**
-     * @var JobInterface
-     * @ORM\Column(type="object")
+     * @var resource
+     * @ORM\Column(type="blob")
      */
     protected $job;
 
@@ -77,25 +88,127 @@ class ScheduledJob
      */
     protected $running = false;
 
-    public function __construct(
-        JobInterface $job,
+    /**
+     * @param resource $job
+     * @param string $queue
+     * @param DateTimeImmutable $duedate
+     * @param string $groupName
+     * @param string $identifier
+     * @param int $incarnation
+     * @param string $claimed
+     * @param bool $running
+     */
+    protected function __construct(
+        $job,
         string $queue,
         DateTimeImmutable $duedate,
         string $groupName,
-        string $identifier = '',
-        int $incarnation = 0,
-        string $claimed = '',
-        bool $running = false
+        string $identifier,
+        int $incarnation,
+        string $claimed,
+        bool $running
     ) {
-        $this->job = $job;
+        $this->job = self::convertToSerializedJob($job);
         $this->queue = $queue;
         $this->duedate = $duedate;
         $this->activity = new DateTimeImmutable();
         $this->groupName = $groupName;
-        $this->identifier = $identifier ?: Algorithms::generateUUID();
+        $this->identifier = $identifier;
         $this->incarnation = $incarnation;
         $this->claimed = $claimed;
         $this->running = $running;
+    }
+
+    public static function createNew(
+        JobInterface $job,
+        string $queue,
+        DateTimeImmutable $duedate,
+        string $groupName,
+        ?string $identifier = null
+    ): static {
+        return static::createInternal(
+            job: serialize($job),
+            queue: $queue,
+            duedate: $duedate,
+            groupName: $groupName,
+            identifier: $identifier ?? Algorithms::generateUUID(),
+            incarnation: 0,
+            claimed: '',
+            running: false
+        );
+    }
+
+    /**
+     * @param string|resource|JobInterface $job
+     * @param string $queue
+     * @param DateTimeImmutable $duedate
+     * @param string $groupName
+     * @param string $identifier
+     * @param int $incarnation
+     * @param string $claimed
+     * @param bool $running
+     * @return static
+     * @internal
+     */
+    public static function createInternal(
+        mixed $job,
+        string $queue,
+        DateTimeImmutable $duedate,
+        string $groupName,
+        string $identifier,
+        int $incarnation,
+        string $claimed,
+        bool $running
+    ): static {
+        return new static(
+            $job,
+            $queue,
+            $duedate,
+            $groupName,
+            $identifier,
+            $incarnation,
+            $claimed,
+            $running
+        );
+    }
+
+    /**
+     * @param string | resource | JobInterface $job
+     * @return resource
+     */
+    protected static function convertToSerializedJob(mixed $job)
+    {
+        if (is_resource($job)) {
+            return $job;
+        }
+
+        if(is_object($job) && $job instanceof JobInterface) {
+            $job = serialize($job);
+        }
+
+        if (is_string($job)) {
+            $jobMemory = fopen('php://memory', 'r+');
+            fputs($jobMemory, $job);
+            return $jobMemory;
+        }
+
+        throw new InvalidArgumentException('The $job parameter must be of type string, resource or JobInterface.', 1761847348);
+    }
+
+    public function forRescheduling(
+        DateTimeImmutable $duedate,
+    ): static
+    {
+        return ScheduledJob::createInternal(
+            job: $this->job,
+            queue: $this->queue,
+            duedate: $duedate,
+            groupName: $this->groupName,
+            identifier: $this->identifier,
+            incarnation: $this->incarnation + 1,
+            claimed: '',
+            running: $this->running
+        );
     }
 
     public function getGroupName(): string
@@ -110,7 +223,12 @@ class ScheduledJob
 
     public function getJob(): JobInterface
     {
-        return $this->job;
+        return unserialize(stream_get_contents($this->job, null, 0));
+    }
+
+    public function getSerializedJob(): string
+    {
+        return stream_get_contents($this->job, null, 0);
     }
 
     public function getQueueName(): string

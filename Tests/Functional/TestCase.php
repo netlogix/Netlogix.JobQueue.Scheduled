@@ -64,11 +64,11 @@ class TestCase extends FunctionalTestCase
      */
     protected function scheduleJob(): void
     {
-        $scheduledJob = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            self::getDueDate(),
-            Scheduler::DEFAULT_GROUP_NAME
+        $scheduledJob = ScheduledJob::createNew(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: self::getDueDate(),
+            groupName: Scheduler::DEFAULT_GROUP_NAME
         );
 
         $this->scheduler->schedule($scheduledJob);
