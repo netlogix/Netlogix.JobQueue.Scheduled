@@ -64,7 +64,6 @@ class SchedulerCommandController extends CommandController
                     claimed = '',
                     incarnation = incarnation + 1
                 WHERE running = 1
-                  AND claimed != ''
                   AND claimed NOT LIKE 'failed(%)'
                   AND groupname = :groupName
                   AND activity < NOW() - INTERVAL :minutes MINUTE
