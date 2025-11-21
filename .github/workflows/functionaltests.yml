@@ -68,7 +68,7 @@ jobs:
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: ${{ env.FLOW_DIST_FOLDER }}/DistributionPackages/Netlogix.JobQueue.Scheduled
 
