@@ -6,6 +6,8 @@ namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\DBAL\Platforms\MySqlPlatform;
+use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
 use Doctrine\DBAL\Types\Types;
 use InvalidArgumentException;
 use Neos\Flow\Utility\Algorithms;
@@ -18,7 +20,7 @@ use function array_filter;
 use function in_array;
 use function sprintf;
 
-class Scheduler
+abstract class Scheduler
 {
     public const DEFAULT_GROUP_NAME = 'default';
 
@@ -36,6 +38,20 @@ class Scheduler
      * @var TimeBaseForDueDateCalculation
      */
     protected $timeBaseForDueDateCalculation;
+
+    protected const SCHEDULE_QUERY = "";
+
+    protected const NEXT_QUERY = "";
+
+    public static function fromConnection(\Doctrine\DBAL\Connection $connection): self {
+        if ($connection->getDatabasePlatform() instanceof MySqlPlatform) {
+            return new MySQLScheduler();
+        }
+        if ($connection->getDatabasePlatform() instanceof PostgreSqlPlatform) {
+            return new PostgreSQLScheduler();
+        }
+        throw new InvalidArgumentException("unsupported database platform " . $connection->getDatabasePlatform()->getName());
+    }
 
     public function injectConnection(Connection $connection): void
     {
@@ -73,7 +89,7 @@ class Scheduler
             SELECT 1 FROM {$tableName}
             WHERE identifier = :identifier
               AND groupname = :groupname
-              AND claimed = ""
+              AND claimed = ''
             MySQL;
 
         return $this->dbal->fetchOne($statement, ['identifier' => $identifier, 'groupname' => $groupName]) !== false;
@@ -90,36 +106,7 @@ class Scheduler
         $claim = Algorithms::generateUUID();
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $update =
-        /**
-         * Step 1: Create a derived table using the "idx_for_update" index
-         *         that only contains one row.
-         * Step 2: Join that row against the actual job to be claimed on
-         *         the primary key column.
-         * Step 3: UPDATE that row with the claim value.
-         *
-         * Otherwise, MySQL would use the "idx_groupname" index, fetch
-         * millions of rows, use a temp table to sort those millions
-         * and limit the result to the one row to be claimed.
-         *
-         * @lang MySQL
-         */
-        <<<"MySQL"
-            UPDATE (SELECT identifier
-                    FROM {$tableName}
-                    WHERE duedate <= :now
-                      AND groupname = :groupname
-                      AND claimed = ""
-                      AND running = 0
-                    ORDER BY duedate ASC
-                    LIMIT 1) AS delinquents
-                INNER JOIN {$tableName}
-                USING (identifier)
-            SET claimed = :claimed,
-                running = 1,
-                activity = NOW()
-            WHERE claimed = ""
-            MySQL;
+        $update = static::NEXT_QUERY;
         (new Retry())
             /**
              * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
@@ -206,7 +193,7 @@ class Scheduler
                     activity = NOW()
                 WHERE groupname = :groupname
                   AND identifier = :identifier
-                  AND claimed = ""
+                  AND claimed = ''
                 MySQL;
             $this->dbal
                 ->executeQuery(
@@ -279,30 +266,7 @@ class Scheduler
     protected function scheduleJob(ScheduledJob $job): void
     {
         $this->validateGroupName($job->getGroupName());
-        $tableName = ScheduledJob::TABLE_NAME;
-
-        $statement = /** @lang MySQL */ <<<MySQL
-            INSERT INTO {$tableName}
-                (groupname, identifier, duedate, activity, queue, job, incarnation, claimed, running)
-            VALUES (:groupname, :identifier, :duedate, NOW(), :queue, :job, :incarnation, :claimed, :running)
-            ON DUPLICATE KEY
-                UPDATE
-                    duedate = CASE
-                           WHEN running = 1
-                               -- If the job is already running, this is "another one",
-                               -- so schedule the next one according to its own date.
-                               THEN :duedate
-                           WHEN duedate < :duedate
-                               -- If this reschedules a waiting job, use the lower value
-                               THEN duedate
-                           ELSE
-                               :duedate
-                       END,
-                       incarnation = :incarnation,
-                       queue    = :queue,
-                       job      = :job,
-                       claimed  = :claimed
-            MySQL;
+        $statement = static::SCHEDULE_QUERY;
 
         (new Retry())
             /**

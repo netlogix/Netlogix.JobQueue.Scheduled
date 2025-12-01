@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
+use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\Platforms\MySqlPlatform;
+use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
 use Doctrine\DBAL\Types\Types;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Cli\CommandController;
@@ -24,7 +27,7 @@ class SchedulerCommandController extends CommandController
 
     protected ThrowableStorageInterface $throwableStorage;
 
-    protected Connection $dbal;
+    protected Connection $connection;
 
     public function injectScheduler(Scheduler $scheduler): void
     {
@@ -43,7 +46,7 @@ class SchedulerCommandController extends CommandController
 
     public function injectConnection(Connection $connection): void
     {
-        $this->dbal = $connection;
+        $this->connection = $connection;
     }
 
     /**
@@ -51,14 +54,15 @@ class SchedulerCommandController extends CommandController
      *
      * @param string $groupName Free jobs in this group only
      * @param int $minutes Count jobs as stale if their last activity was more than these many minutes ago
+     * @throws Exception
      */
     public function resetStaleJobsCommand(
         string $groupName,
         int $minutes = 10
     ): void {
         $tableName = ScheduledJob::TABLE_NAME;
-        $freed = $this->dbal->executeQuery(
-            sql: <<<MySQL
+        if ($this->connection->getDbal()->getDatabasePlatform() instanceof MySqlPlatform) {
+            $sql = <<<MySQL
                 UPDATE {$tableName}
                 SET running = 0,
                     claimed = '',
@@ -67,7 +71,25 @@ class SchedulerCommandController extends CommandController
                   AND claimed NOT LIKE 'failed(%)'
                   AND groupname = :groupName
                   AND activity < NOW() - INTERVAL :minutes MINUTE
-                MySQL,
+            MySQL;
+        }
+        else if ($this->connection->getDbal()->getDatabasePlatform() instanceof PostgreSqlPlatform) {
+            $sql = <<<PostgreSQL
+                UPDATE {$tableName}
+                SET running = 0,
+                    claimed = '',
+                    incarnation = incarnation + 1
+                WHERE running = 1
+                  AND claimed NOT LIKE 'failed(%)'
+                  AND groupname = :groupName
+                  AND activity < NOW() - make_interval(mins => :minutes)
+            PostgreSQL;
+        } else {
+            throw new \RuntimeException("unsupported database platform " . $this->connection->getDbal()->getDatabasePlatform()->getName());
+        }
+
+        $freed = $this->connection->executeQuery(
+            sql: $sql,
             params: [
                 'groupName' => $groupName,
                 'minutes' => max($minutes, 1),
