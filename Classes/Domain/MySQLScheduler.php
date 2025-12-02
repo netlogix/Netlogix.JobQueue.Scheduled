@@ -56,4 +56,15 @@ class MySQLScheduler extends AbstractScheduler  {
         WHERE claimed = ""
        MySQL;
 
+    protected function getSqlTrue(): mixed
+    {
+        return 1;
+    }
+
+    protected function getSqlFalse(): mixed
+    {
+        return 0;
+    }
+
+
 }

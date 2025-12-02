@@ -31,18 +31,28 @@ class PostgreSQLScheduler extends AbstractScheduler {
             WHERE duedate   <= :now
               AND groupname  = :groupname
               AND claimed    = ''
-              AND running    = 0
+              AND running    = FALSE
             ORDER BY duedate ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
         UPDATE netlogix_jobqueue_scheduled_job AS j
         SET claimed  = :claimed,
-            running  = 1,
+            running  = TRUE,
             activity = NOW()
         FROM delinquents
         WHERE j.identifier = delinquents.identifier
             AND j.claimed = '';
     PostgreSQL;
+
+    protected function getSqlTrue(): mixed
+    {
+        return "TRUE";
+    }
+
+    protected function getSqlFalse(): mixed
+    {
+        return "FALSE";
+    }
 
 }

@@ -173,14 +173,14 @@ abstract class AbstractScheduler implements Scheduler
                 ]
             );
         if ($deleteResult->rowCount() === 0) {
-            $free = /** @lang MySQL */ <<<"MySQL"
+            $free = /** @lang MySQL */ <<<MySQL
                 UPDATE {$tableName}
-                SET running = 0,
+                SET running = {$this->getSqlTrue()},
                     activity = NOW()
                 WHERE groupname = :groupname
                   AND identifier = :identifier
                   AND claimed = ''
-                MySQL;
+            MySQL;
             $this->dbal
                 ->executeQuery(
                     $free,
@@ -202,7 +202,7 @@ abstract class AbstractScheduler implements Scheduler
         $update = /** @lang MySQL */ <<<"MySQL"
             UPDATE {$tableName}
             SET claimed = :failed,
-                running = 0,
+                running = {$this->getSqlFalse()},
                 activity = NOW()
             WHERE identifier = :identifier
               AND claimed = :claimed
@@ -294,4 +294,8 @@ abstract class AbstractScheduler implements Scheduler
             throw new InvalidArgumentException(\sprintf('Group name "%s" is not active', $groupName), 1721393320);
         }
     }
+
+    protected abstract function getSqlTrue(): mixed;
+
+    protected abstract function getSqlFalse(): mixed;
 }
