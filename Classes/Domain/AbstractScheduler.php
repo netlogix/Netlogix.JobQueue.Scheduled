@@ -20,8 +20,6 @@ use function sprintf;
 
 abstract class AbstractScheduler implements Scheduler
 {
-    public const DEFAULT_GROUP_NAME = 'default';
-
     /**
      * @var Connection
      */

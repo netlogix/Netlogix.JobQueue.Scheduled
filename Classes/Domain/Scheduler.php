@@ -6,6 +6,8 @@ use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 
 interface Scheduler {
 
+    public const DEFAULT_GROUP_NAME = 'default';
+
     public function schedule(ScheduledJob $job, ScheduledJob ...$jobs): void;
 
     public function isScheduled(string $groupName, string $identifier): bool;
