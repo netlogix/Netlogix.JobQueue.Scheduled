@@ -2,7 +2,7 @@
 
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
-class PostgreSQLScheduler extends Scheduler {
+class PostgreSQLScheduler extends AbstractScheduler {
 
     protected const SCHEDULE_QUERY = /** @lang PostgreSQL */ <<<PostgreSQL
         INSERT INTO netlogix_jobqueue_scheduled_job
@@ -22,7 +22,7 @@ class PostgreSQLScheduler extends Scheduler {
                 queue    = :queue,
                 job      = :job,
                 claimed  = :claimed
-        PostgreSQL;
+       PostgreSQL;
 
     protected const NEXT_QUERY = /** @lang PostgreSQL */ <<<PostgreSQL
         WITH delinquents AS (

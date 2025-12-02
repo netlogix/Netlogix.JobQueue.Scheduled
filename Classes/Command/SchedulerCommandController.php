@@ -6,6 +6,7 @@ namespace Netlogix\JobQueue\Scheduled\Command;
 
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Platforms\MySqlPlatform;
+use Doctrine\DBAL\Platforms\PostgreSQL94Platform;
 use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
 use Doctrine\DBAL\Types\Types;
 use Flowpack\JobQueue\Common\Job\JobManager;
@@ -61,7 +62,9 @@ class SchedulerCommandController extends CommandController
         int $minutes = 10
     ): void {
         $tableName = ScheduledJob::TABLE_NAME;
-        if ($this->connection->getDbal()->getDatabasePlatform() instanceof MySqlPlatform) {
+        $platform =  $this->connection->getDbal()->getDatabasePlatform();
+        if ($platform instanceof MySqlPlatform)
+        {
             $sql = <<<MySQL
                 UPDATE {$tableName}
                 SET running = 0,
@@ -73,7 +76,8 @@ class SchedulerCommandController extends CommandController
                   AND activity < NOW() - INTERVAL :minutes MINUTE
             MySQL;
         }
-        else if ($this->connection->getDbal()->getDatabasePlatform() instanceof PostgreSqlPlatform) {
+        else if ($platform instanceof PostgreSqlPlatform || $platform instanceof PostgreSQL94Platform)
+        {
             $sql = <<<PostgreSQL
                 UPDATE {$tableName}
                 SET running = 0,

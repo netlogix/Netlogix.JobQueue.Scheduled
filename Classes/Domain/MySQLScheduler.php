@@ -2,7 +2,7 @@
 
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
-class MySQLScheduler extends Scheduler {
+class MySQLScheduler extends AbstractScheduler  {
 
     protected const SCHEDULE_QUERY = /** @lang MySQL */ <<<MySQL
         INSERT INTO netlogix_jobqueue_scheduled_job
