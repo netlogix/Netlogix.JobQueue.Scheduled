@@ -80,10 +80,10 @@ class SchedulerCommandController extends CommandController
         {
             $sql = <<<PostgreSQL
                 UPDATE {$tableName}
-                SET running = 0,
+                SET running = FALSE,
                     claimed = '',
                     incarnation = incarnation + 1
-                WHERE running = 1
+                WHERE running = TRUE
                   AND claimed NOT LIKE 'failed(%)'
                   AND groupname = :groupName
                   AND activity < NOW() - make_interval(mins => :minutes)
