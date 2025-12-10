@@ -206,7 +206,6 @@ abstract class AbstractScheduler implements Scheduler
                 activity = NOW()
             WHERE identifier = :identifier
               AND claimed = :claimed
-            LIMIT 1
         MySQL;
         $this->dbal
             ->executeQuery(
