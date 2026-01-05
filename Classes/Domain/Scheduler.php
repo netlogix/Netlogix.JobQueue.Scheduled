@@ -90,16 +90,18 @@ class Scheduler
         $claim = Algorithms::generateUUID();
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $update =
+        $claimQuery =
         /**
-         * Step 1: Create a derived table using the "idx_for_update" index
-         *         that only contains one row.
-         * Step 2: Join that row against the actual job to be claimed on
-         *         the primary key column.
-         * Step 3: UPDATE that row with the claim value.
+         * Step 1: Insert the "claimed" value without locking.
+         *
+         * Step 1.1: Create a derived table using the "idx_for_update" index
+         *           that only contains one row.
+         * Step 1.2: Join that row against the actual job to be claimed on
+         *           the primary key column.
+         * Step 1.3: UPDATE that row with the claim value.
          *
          * Otherwise, MySQL would use the "idx_groupname" index, fetch
-         * millions of rows, use a temp table to sort those millions
+         * millions of rows, use a temp table to sort those millions,
          * and limit the result to the one row to be claimed.
          *
          * @lang MySQL
@@ -116,7 +118,7 @@ class Scheduler
                 INNER JOIN {$tableName}
                 USING (identifier)
             SET claimed = :claimed,
-                running = 1,
+                running = 2,
                 activity = NOW()
             WHERE claimed = ""
             MySQL;
@@ -128,7 +130,7 @@ class Scheduler
             ->onExceptionsOfType(RetryableException::class)
             ->task(fn() => $this->dbal
                 ->executeQuery(
-                    $update,
+                    $claimQuery,
                     [
                         'now' => $this->timeBaseForDueDateCalculation->getNow(),
                         'groupname' => $groupName,
@@ -141,7 +143,13 @@ class Scheduler
                     ]
                 ));
 
-        $select = /** @lang MySQL */ <<<MySQL
+        $selectQuery =
+            /**
+             * Step 2: Find the row in the database.
+             *
+             * @lang MySQL
+             */
+            <<<"MySQL"
             SELECT identifier, duedate, queue, job, incarnation, claimed, running
             FROM {$tableName}
             WHERE claimed = :claimed
@@ -149,7 +157,7 @@ class Scheduler
             MySQL;
         $row = $this->dbal
             ->executeQuery(
-                $select,
+                $selectQuery,
                 [
                     'groupname' => $groupName,
                     'claimed' => $claim,
@@ -164,6 +172,41 @@ class Scheduler
         if (!$row) {
             return null;
         }
+
+        $releaseQuery =
+            /**
+             * Step 3: Unlock the row and allow parallel processes to overwrite the "claimed" value
+             *
+             * @lang MySQL
+             */
+            <<<"MySQL"
+            UPDATE {$tableName}
+            SET running = 1,
+                activity = NOW()
+            WHERE claimed = :claimed
+              AND groupname = :groupname
+              AND running = 2
+            MySQL;
+        (new Retry())
+            /**
+             * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
+             */
+            ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
+            ->onExceptionsOfType(RetryableException::class)
+            ->task(fn() => $this->dbal
+                ->executeQuery(
+                    $releaseQuery,
+                    [
+                        'groupname' => $groupName,
+                        'claimed' => $claim,
+                    ],
+                    [
+                        'groupname' => Types::STRING,
+                        'claimed' => Types::STRING,
+                    ]
+                ));
+
+
 
         return ScheduledJob::createInternal(
             job: $row['job'],
@@ -277,27 +320,52 @@ class Scheduler
         $this->validateGroupName($job->getGroupName());
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $statement = /** @lang MySQL */ <<<MySQL
+        $statement =
+            /**
+             * `running = 0`:
+             *
+             * - Meaning: The existing job is currently pending.
+             * - Set claimed to empty, which should be the case anyway.
+             * - Use the lesser due date to avoid pushing jobs further and further into the future
+             *
+             * `running = 1`:
+             *
+             * - Meaning: The existing job is currently running.
+             * - Set claimed to empty to cause a re-run, once the current run finishes.
+             * - Use the upcoming due date, the current job is running anyway.
+             *
+             * `running = 2`:
+             *
+             * - Meaning: The existing job in its warmup phase.
+             * - Keeping claimed "as is" is mandatory for the current run to pick up.
+             * - The due date doesn't matter because once finished, the current run will vanish.
+             *
+             * @lang MySQL
+             */ <<<MySQL
             INSERT INTO {$tableName}
                 (groupname, identifier, duedate, activity, queue, job, incarnation, claimed, running)
             VALUES (:groupname, :identifier, :duedate, NOW(), :queue, :job, :incarnation, :claimed, :running)
             ON DUPLICATE KEY
                 UPDATE
-                    duedate = CASE
+                    duedate        = CASE
+                           WHEN running = 0
+                               THEN IF(duedate < :duedate, duedate, :duedate)
                            WHEN running = 1
-                               -- If the job is already running, this is "another one",
-                               -- so schedule the next one according to its own date.
                                THEN :duedate
-                           WHEN duedate < :duedate
-                               -- If this reschedules a waiting job, use the lower value
+                           WHEN running = 2
                                THEN duedate
-                           ELSE
-                               :duedate
                        END,
                        incarnation = :incarnation,
-                       queue    = :queue,
-                       job      = :job,
-                       claimed  = :claimed
+                       queue       = :queue,
+                       job         = :job,
+                       claimed     = CASE
+                           WHEN running = 0
+                               THEN :claimed
+                           WHEN running = 1
+                               THEN :claimed
+                           WHEN running = 2
+                               THEN claimed
+                       END
             MySQL;
 
         (new Retry())
