@@ -232,7 +232,6 @@ class Scheduler
                 running = 0,
                 activity = NOW()
             WHERE identifier = :identifier
-              AND claimed = :claimed
             LIMIT 1
         MySQL;
         $this->dbal
@@ -259,7 +258,6 @@ class Scheduler
             UPDATE {$tableName}
             SET activity = NOW()
             WHERE identifier = :identifier
-              AND claimed = :claimed
             LIMIT 1
         MySQL;
         $this->dbal
@@ -267,11 +265,9 @@ class Scheduler
                 $update,
                 [
                     'identifier' => $job->getIdentifier(),
-                    'claimed' => $job->getClaimed(),
                 ],
                 [
                     'identifier' => Types::STRING,
-                    'claimed' => Types::STRING,
                 ]
             );
     }
