@@ -79,7 +79,7 @@ class ScheduledJob
 
     /**
      * @var string
-     * @ORM\Column(length=36, options={"fixed": true, "default": ""})
+     * @ORM\Column(length=36, options={"default": ""})
      */
     protected $claimed = '';
 

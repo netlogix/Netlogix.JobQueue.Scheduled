@@ -132,7 +132,7 @@ abstract class AbstractScheduler implements Scheduler
                     'claimed' => Types::STRING,
                 ]
             )
-            ->fetch();
+            ->fetchAssociative();
 
         if (!$row) {
             return null;
@@ -175,7 +175,7 @@ abstract class AbstractScheduler implements Scheduler
         if ($deleteResult->rowCount() === 0) {
             $free = /** @lang MySQL */ <<<MySQL
                 UPDATE {$tableName}
-                SET running = {$this->getSqlTrue()},
+                SET running = {$this->getSqlFalse()},
                     activity = NOW()
                 WHERE groupname = :groupname
                   AND identifier = :identifier
@@ -197,6 +197,9 @@ abstract class AbstractScheduler implements Scheduler
         if ($job->getClaimed() === '') {
             throw new InvalidArgumentException('Cannot fail unclaimed jobs', 1718808398);
         }
+
+        $reason = substr($reason, 0, 36);
+
         $tableName = ScheduledJob::TABLE_NAME;
 
         $update = /** @lang MySQL */ <<<"MySQL"
