@@ -225,7 +225,6 @@ abstract class AbstractScheduler implements Scheduler
                 running = 0,
                 activity = NOW()
             WHERE identifier = :identifier
-            LIMIT 1
         MySQL;
         $this->dbal
             ->executeQuery(
@@ -251,7 +250,6 @@ abstract class AbstractScheduler implements Scheduler
             UPDATE {$tableName}
             SET activity = NOW()
             WHERE identifier = :identifier
-            LIMIT 1
             MySQL;
         $this->dbal
             ->executeQuery(
