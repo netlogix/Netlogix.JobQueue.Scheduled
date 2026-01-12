@@ -158,7 +158,7 @@ class ScheduledJob
         string $identifier,
         int $incarnation,
         string $claimed,
-        int $running
+        int|bool $running
     ): static {
         return new static(
             $job,
@@ -168,7 +168,8 @@ class ScheduledJob
             $identifier,
             $incarnation,
             $claimed,
-            $running
+            // FIXME: This should probably be int only, but allowing bool avoids rewriting all tests
+            is_bool($running) ? ($running ? 1 : 0) : $running
         );
     }
 
