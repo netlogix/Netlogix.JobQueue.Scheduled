@@ -8,6 +8,8 @@ use InvalidArgumentException;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 
+use function serialize;
+
 class FailTest extends TestCase
 {
     /**
@@ -27,14 +29,15 @@ class FailTest extends TestCase
      */
     public function Claimed_jobs_can_be_failed(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            100,
-            'claim'
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 100,
+            claimed: 'claim',
+            running: false
         );
         $this->persistenceManager->add($job);
         $this->persistenceManager->persistAll();
@@ -55,13 +58,15 @@ class FailTest extends TestCase
      */
     public function Cannot_fail_unclaimed_jobs(): void
     {
-        $job = new ScheduledJob(
-            self::getJobQueueJob(),
-            self::getQueueName(),
-            $this->now,
-            Scheduler::DEFAULT_GROUP_NAME,
-            'my-first-identifier',
-            100
+        $job = ScheduledJob::createInternal(
+            job: self::getJobQueueJob(),
+            queue: self::getQueueName(),
+            duedate: $this->now,
+            groupName: Scheduler::DEFAULT_GROUP_NAME,
+            identifier: 'my-first-identifier',
+            incarnation: 100,
+            claimed: '',
+            running: false
         );
 
         self::expectException(InvalidArgumentException::class);

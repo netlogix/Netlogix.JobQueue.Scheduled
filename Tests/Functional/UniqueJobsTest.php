@@ -15,12 +15,12 @@ class UniqueJobsTest extends TestCase
     public function Scheduled_jobs_can_specify_job_identifiers(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
@@ -38,22 +38,22 @@ class UniqueJobsTest extends TestCase
     public function Multiple_jobs_with_conflicting_identifiers_get_only_persisted_once(): void
     {
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
@@ -68,23 +68,23 @@ class UniqueJobsTest extends TestCase
     {
         $firstJob = self::getJobQueueJob();
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
         $secondJob = JobQueueJob::second();
         $this->scheduler->schedule(
-            new ScheduledJob(
-                $secondJob,
-                self::getQueueName(),
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: $secondJob,
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
@@ -101,23 +101,23 @@ class UniqueJobsTest extends TestCase
     {
         $firstQueueName = self::getQueueName();
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                $firstQueueName,
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: $firstQueueName,
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
         $secondQueueName = 'another-queue';
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                $secondQueueName,
-                self::getDueDate(),
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: $secondQueueName,
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
@@ -135,23 +135,23 @@ class UniqueJobsTest extends TestCase
     {
         $firstDueDate = new \DateTimeImmutable('2020-01-01 00:00:00');
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $firstDueDate,
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $firstDueDate,
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
         $secondDueDate = $firstDueDate->modify('- 1 second');
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $secondDueDate,
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $secondDueDate,
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
@@ -169,23 +169,23 @@ class UniqueJobsTest extends TestCase
     {
         $firstDueDate = new \DateTimeImmutable('2020-01-01 00:00:00');
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $firstDueDate,
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $firstDueDate,
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
         $secondDueDate = $firstDueDate->modify('+ 1 second');
         $this->scheduler->schedule(
-            new ScheduledJob(
-                self::getJobQueueJob(),
-                self::getQueueName(),
-                $secondDueDate,
-                Scheduler::DEFAULT_GROUP_NAME,
-                self::getJobIdentifier()
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: $secondDueDate,
+                groupName: Scheduler::DEFAULT_GROUP_NAME,
+                identifier: self::getJobIdentifier()
             )
         );
 
