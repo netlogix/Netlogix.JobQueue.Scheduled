@@ -107,10 +107,6 @@ jobs:
         run: "cp DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.${{ matrix.database.image }}.dist Configuration/Testing/Settings.yaml"
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
-      - name: "Dump database config"
-        run: ./flow configuration:show 'Neos.Flow.persistence.backendOptions'
-        working-directory: ${{ env.FLOW_DIST_FOLDER }}
-
       - name: Run tests
         run: bin/phpunit -c DistributionPackages/Netlogix.JobQueue.Scheduled/phpunit.xml.dist --testsuite="Functional" --bootstrap "Build/BuildEssentials/PhpUnit/FunctionalTestBootstrap.php"
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
