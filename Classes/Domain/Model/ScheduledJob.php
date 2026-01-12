@@ -85,6 +85,7 @@ class ScheduledJob
 
     /**
      * @var int
+     * @ORM\Column(type="smallint")
      */
     protected $running = 0;
 
