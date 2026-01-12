@@ -35,9 +35,10 @@ abstract class AbstractScheduler implements Scheduler
      */
     protected TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation;
 
+    protected const CLAIM_QUERY = "";
+    protected const SELECT_QUERY = "";
+    protected const RELEASE_QUERY = "";
     protected const SCHEDULE_QUERY = "";
-
-    protected const NEXT_QUERY = "";
 
     public function injectConnection(Connection $connection): void
     {
@@ -90,9 +91,8 @@ abstract class AbstractScheduler implements Scheduler
     {
         $this->validateGroupName($groupName);
         $claim = Algorithms::generateUUID();
-        $tableName = ScheduledJob::TABLE_NAME;
 
-        $update = static::NEXT_QUERY;
+        $claimQuery = static::CLAIM_QUERY;
         (new Retry())
             /**
              * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
@@ -101,7 +101,7 @@ abstract class AbstractScheduler implements Scheduler
             ->onExceptionsOfType(RetryableException::class)
             ->task(fn() => $this->dbal
                 ->executeQuery(
-                    $update,
+                    $claimQuery,
                     [
                         'now' => $this->timeBaseForDueDateCalculation->getNow(),
                         'groupname' => $groupName,
@@ -114,12 +114,8 @@ abstract class AbstractScheduler implements Scheduler
                     ]
                 ));
 
-        $select = /** @lang MySQL */ <<<MySQL
-            SELECT identifier, duedate, queue, job, incarnation, claimed, running
-            FROM {$tableName}
-            WHERE claimed = :claimed
-              AND groupname = :groupname
-            MySQL;
+        $select = static::SELECT_QUERY;
+
         $row = $this->dbal
             ->executeQuery(
                 $select,
@@ -138,6 +134,27 @@ abstract class AbstractScheduler implements Scheduler
             return null;
         }
 
+        $release = static::RELEASE_QUERY;
+
+        (new Retry())
+            /**
+             * @see http://backoffcalculator.com/?attempts=5&rate=1&interval=0.5
+             */
+            ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
+            ->onExceptionsOfType(RetryableException::class)
+            ->task(fn() => $this->dbal
+                ->executeQuery(
+                    $release,
+                    [
+                        'groupname' => $groupName,
+                        'claimed' => $claim,
+                    ],
+                    [
+                        'groupname' => Types::STRING,
+                        'claimed' => Types::STRING,
+                    ]
+                ));
+
         return ScheduledJob::createInternal(
             job: $row['job'],
             queue: $row['queue'],
@@ -146,7 +163,7 @@ abstract class AbstractScheduler implements Scheduler
             identifier: (string)$row['identifier'],
             incarnation: (int)$row['incarnation'],
             claimed: (string)$row['claimed'],
-            running: (bool)$row['running']
+            running: (int)$row['running']
         );
     }
 
@@ -175,7 +192,7 @@ abstract class AbstractScheduler implements Scheduler
         if ($deleteResult->rowCount() === 0) {
             $free = /** @lang MySQL */ <<<MySQL
                 UPDATE {$tableName}
-                SET running = {$this->getSqlFalse()},
+                SET running = 0,
                     activity = NOW()
                 WHERE groupname = :groupname
                   AND identifier = :identifier
@@ -202,13 +219,13 @@ abstract class AbstractScheduler implements Scheduler
 
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $update = /** @lang MySQL */ <<<"MySQL"
+        $update = /** @lang MySQL */ <<<MySQL
             UPDATE {$tableName}
             SET claimed = :failed,
-                running = {$this->getSqlFalse()},
+                running = 0,
                 activity = NOW()
             WHERE identifier = :identifier
-              AND claimed = :claimed
+            LIMIT 1
         MySQL;
         $this->dbal
             ->executeQuery(
@@ -234,19 +251,16 @@ abstract class AbstractScheduler implements Scheduler
             UPDATE {$tableName}
             SET activity = NOW()
             WHERE identifier = :identifier
-              AND claimed = :claimed
             LIMIT 1
-        MySQL;
+            MySQL;
         $this->dbal
             ->executeQuery(
                 $update,
                 [
                     'identifier' => $job->getIdentifier(),
-                    'claimed' => $job->getClaimed(),
                 ],
                 [
                     'identifier' => Types::STRING,
-                    'claimed' => Types::STRING,
                 ]
             );
     }
@@ -273,7 +287,7 @@ abstract class AbstractScheduler implements Scheduler
                         'job' => $job->getSerializedJob(),
                         'incarnation' => $job->getIncarnation(),
                         'claimed' => $job->getClaimed(),
-                        'running' => $job->isRunning() ? 1 : 0,
+                        'running' => $job->getRunning(),
                     ],
                     [
                         'groupname' => Types::STRING,
@@ -283,7 +297,7 @@ abstract class AbstractScheduler implements Scheduler
                         'job' => Types::BLOB,
                         'incarnation' => Types::INTEGER,
                         'claimed' => Types::STRING,
-                        'running' => Types::BOOLEAN,
+                        'running' => Types::INTEGER,
                     ]
                 ));
         // TODO: Find a way to "trigger queueing" without cronjobs. Maybe "dynamic cronjobs" like "at".
@@ -296,8 +310,4 @@ abstract class AbstractScheduler implements Scheduler
             throw new InvalidArgumentException(\sprintf('Group name "%s" is not active', $groupName), 1721393320);
         }
     }
-
-    protected abstract function getSqlTrue(): mixed;
-
-    protected abstract function getSqlFalse(): mixed;
 }

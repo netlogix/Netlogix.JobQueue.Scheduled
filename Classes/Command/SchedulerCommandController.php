@@ -162,7 +162,6 @@ class SchedulerCommandController extends CommandController
                                     if (count($pool) === 0) {
                                         $pool->eventLoop->cancelTimer($ping);
                                         $pool->eventLoop->cancelTimer($checkForPoolToClear);
-                                        $pool->eventLoop->stop();
                                     }
                                 }
                             );

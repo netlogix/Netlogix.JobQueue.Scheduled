@@ -84,9 +84,9 @@ class ScheduledJob
     protected $claimed = '';
 
     /**
-     * @var bool
+     * @var int
      */
-    protected $running = false;
+    protected $running = 0;
 
     /**
      * @param resource $job
@@ -96,7 +96,7 @@ class ScheduledJob
      * @param string $identifier
      * @param int $incarnation
      * @param string $claimed
-     * @param bool $running
+     * @param int $running
      */
     protected function __construct(
         $job,
@@ -106,7 +106,7 @@ class ScheduledJob
         string $identifier,
         int $incarnation,
         string $claimed,
-        bool $running
+        int $running
     ) {
         $this->job = self::convertToSerializedJob($job);
         $this->queue = $queue;
@@ -134,7 +134,7 @@ class ScheduledJob
             identifier: $identifier ?? Algorithms::generateUUID(),
             incarnation: 0,
             claimed: '',
-            running: false
+            running: 0
         );
     }
 
@@ -146,7 +146,7 @@ class ScheduledJob
      * @param string $identifier
      * @param int $incarnation
      * @param string $claimed
-     * @param bool $running
+     * @param int $running
      * @return static
      * @internal
      */
@@ -158,7 +158,7 @@ class ScheduledJob
         string $identifier,
         int $incarnation,
         string $claimed,
-        bool $running
+        int $running
     ): static {
         return new static(
             $job,
@@ -251,7 +251,7 @@ class ScheduledJob
         return $this->claimed;
     }
 
-    public function isRunning(): bool
+    public function getRunning(): int
     {
         return $this->running;
     }
