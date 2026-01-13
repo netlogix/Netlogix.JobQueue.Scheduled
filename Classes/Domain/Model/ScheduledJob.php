@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Flowpack\JobQueue\Common\Job\JobInterface;
 use InvalidArgumentException;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Utility\Algorithms;
 
 use function fopen;
@@ -116,7 +117,7 @@ class ScheduledJob
         $this->groupName = $groupName;
         $this->identifier = $identifier;
         $this->incarnation = $incarnation;
-        $this->claimed = trim($claimed);
+        $this->claimed = $claimed;
         $this->running = $running;
     }
 
@@ -168,10 +169,14 @@ class ScheduledJob
             $groupName,
             $identifier,
             $incarnation,
-            trim($claimed),
+            $claimed,
             // FIXME: This should probably be int only, but allowing bool avoids rewriting all tests
             is_bool($running) ? ($running ? 1 : 0) : $running
         );
+    }
+
+    public function initializeObject() {
+        $this->claimed = trim($this->claimed);
     }
 
     /**
@@ -250,7 +255,7 @@ class ScheduledJob
 
     public function getClaimed(): string
     {
-        return trim($this->claimed);
+        return $this->claimed;
     }
 
     public function getRunning(): int
