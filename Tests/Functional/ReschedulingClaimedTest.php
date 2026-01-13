@@ -30,7 +30,7 @@ class ReschedulingClaimedTest extends TestCase
         $row = $this->objectManager
             ->get(EntityManagerInterface::class)
             ->getConnection()
-            ->fetchAllAssociative('SELECT incarnation, claimed, running FROM ' . ScheduledJob::TABLE_NAME);
+            ->fetchAllAssociative('SELECT incarnation, TRIM(claimed) as claimed, running FROM ' . ScheduledJob::TABLE_NAME);
 
         self::assertEquals(
             [
