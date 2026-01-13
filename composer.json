@@ -13,7 +13,7 @@
         "doctrine/orm": "^2.6",
         "flowpack/jobqueue-common": "^3.0",
         "neos/flow": "~8.3",
-        "netlogix/jobqueue-pool": "dev-main as 1.0",
+        "netlogix/jobqueue-pool": "^1.0",
         "netlogix/retry": "~1.0",
         "php": "~8.2 || ~8.3"
     },

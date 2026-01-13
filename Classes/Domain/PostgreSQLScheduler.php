@@ -23,8 +23,7 @@ class PostgreSQLScheduler extends AbstractScheduler {
         ) AS delinquents
         WHERE j.identifier = delinquents.identifier
           AND j.claimed = '';
-
-    PostgreSQL;
+        PostgreSQL;
 
     /**
      * @lang PostgreSQL
@@ -34,7 +33,7 @@ class PostgreSQLScheduler extends AbstractScheduler {
             FROM netlogix_jobqueue_scheduled_job
             WHERE claimed = :claimed
               AND groupname = :groupname
-    PostgreSQL;
+        PostgreSQL;
 
     /**
      * @lang PostgreSQL
@@ -44,7 +43,7 @@ class PostgreSQLScheduler extends AbstractScheduler {
             SET running = 1,
                 activity = NOW()
             WHERE claimed = :claimed
-    PostgreSQL;
+        PostgreSQL;
 
 
     /**
@@ -74,6 +73,6 @@ class PostgreSQLScheduler extends AbstractScheduler {
                 WHEN netlogix_jobqueue_scheduled_job.running = 2
                     THEN netlogix_jobqueue_scheduled_job.claimed
             END;
-    PostgreSQL;
+        PostgreSQL;
 
 }
