@@ -23,7 +23,7 @@ final class Version20260112135908 extends AbstractMigration
             !$this->connection->getDatabasePlatform() instanceof \Doctrine\DBAL\Platforms\MariaDb1027Platform,
             "Migration can only be executed safely on '\Doctrine\DBAL\Platforms\MariaDb1027Platform'."
         );
-        $this->addSql('ALTER TABLE netlogix_jobqueue_scheduled_job CHANGE claimed claimed VARCHAR(36) DEFAULT \'\' NOT NULL, CHANGE running running SMALLINT NOT NULL');
+        $this->addSql('ALTER TABLE netlogix_jobqueue_scheduled_job CHANGE running running SMALLINT NOT NULL');
     }
 
     public function down(Schema $schema): void
@@ -33,6 +33,6 @@ final class Version20260112135908 extends AbstractMigration
             "Migration can only be executed safely on '\Doctrine\DBAL\Platforms\MariaDb1027Platform'."
         );
 
-        $this->addSql('ALTER TABLE netlogix_jobqueue_scheduled_job CHANGE claimed claimed CHAR(36) CHARACTER SET utf8mb4 DEFAULT \'\' NOT NULL COLLATE `utf8mb4_unicode_ci`, CHANGE running running TINYINT(1) NOT NULL');
+        $this->addSql('ALTER TABLE netlogix_jobqueue_scheduled_job CHANGE running running TINYINT(1) NOT NULL');
     }
 }
