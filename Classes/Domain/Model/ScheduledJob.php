@@ -24,6 +24,7 @@ use function unserialize;
 /**
  * @Flow\Entity
  * @Flow\Proxy(false)
+ * @ORM\HasLifecycleCallbacks
  * @ORM\Table(
  *     name=ScheduledJob::TABLE_NAME,
  *     indexes={
@@ -175,7 +176,12 @@ class ScheduledJob
         );
     }
 
-    public function initializeObject() {
+
+    /**
+     * @ORM\PostLoad()
+     * @return void
+     */
+    public function postORMLoad() {
         $this->claimed = trim($this->claimed);
     }
 
