@@ -79,7 +79,7 @@ class ScheduledJob
 
     /**
      * @var string
-     * @ORM\Column(length=36, options={"default": ""})
+     * @ORM\Column(length=36, options={"fixed": true, "default": ""})
      */
     protected $claimed = '';
 
@@ -116,7 +116,7 @@ class ScheduledJob
         $this->groupName = $groupName;
         $this->identifier = $identifier;
         $this->incarnation = $incarnation;
-        $this->claimed = $claimed;
+        $this->claimed = trim($claimed);
         $this->running = $running;
     }
 
@@ -147,7 +147,7 @@ class ScheduledJob
      * @param string $identifier
      * @param int $incarnation
      * @param string $claimed
-     * @param int $running
+     * @param int|bool $running
      * @return static
      * @internal
      */
@@ -168,7 +168,7 @@ class ScheduledJob
             $groupName,
             $identifier,
             $incarnation,
-            $claimed,
+            trim($claimed),
             // FIXME: This should probably be int only, but allowing bool avoids rewriting all tests
             is_bool($running) ? ($running ? 1 : 0) : $running
         );
@@ -250,7 +250,7 @@ class ScheduledJob
 
     public function getClaimed(): string
     {
-        return $this->claimed;
+        return trim($this->claimed);
     }
 
     public function getRunning(): int
