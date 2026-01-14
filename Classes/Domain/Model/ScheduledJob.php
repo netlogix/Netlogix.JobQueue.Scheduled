@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Flowpack\JobQueue\Common\Job\JobInterface;
 use InvalidArgumentException;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\Utility\Algorithms;
 
 use function fopen;
@@ -23,6 +24,7 @@ use function unserialize;
 /**
  * @Flow\Entity
  * @Flow\Proxy(false)
+ * @ORM\HasLifecycleCallbacks
  * @ORM\Table(
  *     name=ScheduledJob::TABLE_NAME,
  *     indexes={
@@ -84,9 +86,10 @@ class ScheduledJob
     protected $claimed = '';
 
     /**
-     * @var bool
+     * @var int
+     * @ORM\Column(type="smallint")
      */
-    protected $running = false;
+    protected $running = 0;
 
     /**
      * @param resource $job
@@ -96,7 +99,7 @@ class ScheduledJob
      * @param string $identifier
      * @param int $incarnation
      * @param string $claimed
-     * @param bool $running
+     * @param int $running
      */
     protected function __construct(
         $job,
@@ -106,7 +109,7 @@ class ScheduledJob
         string $identifier,
         int $incarnation,
         string $claimed,
-        bool $running
+        int $running
     ) {
         $this->job = self::convertToSerializedJob($job);
         $this->queue = $queue;
@@ -134,7 +137,7 @@ class ScheduledJob
             identifier: $identifier ?? Algorithms::generateUUID(),
             incarnation: 0,
             claimed: '',
-            running: false
+            running: 0
         );
     }
 
@@ -146,7 +149,7 @@ class ScheduledJob
      * @param string $identifier
      * @param int $incarnation
      * @param string $claimed
-     * @param bool $running
+     * @param int|bool $running
      * @return static
      * @internal
      */
@@ -158,7 +161,7 @@ class ScheduledJob
         string $identifier,
         int $incarnation,
         string $claimed,
-        bool $running
+        int|bool $running
     ): static {
         return new static(
             $job,
@@ -168,8 +171,18 @@ class ScheduledJob
             $identifier,
             $incarnation,
             $claimed,
-            $running
+            // FIXME: This should probably be int only, but allowing bool avoids rewriting all tests
+            is_bool($running) ? ($running ? 1 : 0) : $running
         );
+    }
+
+
+    /**
+     * @ORM\PostLoad()
+     * @return void
+     */
+    public function postORMLoad() {
+        $this->claimed = trim($this->claimed);
     }
 
     /**
@@ -251,7 +264,7 @@ class ScheduledJob
         return $this->claimed;
     }
 
-    public function isRunning(): bool
+    public function getRunning(): int
     {
         return $this->running;
     }

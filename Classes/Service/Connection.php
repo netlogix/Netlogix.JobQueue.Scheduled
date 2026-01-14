@@ -98,4 +98,8 @@ class Connection
     {
         return $this->withAutoReconnectAndRetry($dbalInteraction);
     }
+
+    public function getDbal(): DBALConnection {
+        return $this->dbal;
+    }
 }

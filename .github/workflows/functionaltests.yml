@@ -4,43 +4,68 @@ on: [ push, pull_request ]
 
 jobs:
   unittests:
-    name: '[PHP ${{ matrix.php-version }} | Flow ${{ matrix.flow-version }} | MySQL ${{ matrix.mysql-version }}] Functional Tests'
+    name: '[PHP ${{ matrix.php-version }} | Flow ${{ matrix.flow-version }} | Database ${{ matrix.database.image }} ${{ matrix.database.version }}] Functional Tests'
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        php-version: [ 8.2, 8.3 ]
+        php-version: [ 8.3, 8.4, 8.5 ]
         flow-version: [ 8.3 ]
-        mysql-version: [5.7, 8.0]
+        database:
+          - image: postgres
+            version: 16
+            port: 5432
+            options: --health-cmd="exit 0"
+            env:
+              POSTGRES_USER: 'flow'
+              POSTGRES_PASSWORD: 'flow'
+              POSTGRES_DB: 'flow'
+          - image: postgres
+            version: 14
+            port: 5432
+            options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3 --health-start-period 10s
+            env:
+              POSTGRES_USER: 'flow'
+              POSTGRES_PASSWORD: 'flow'
+              POSTGRES_DB: 'flow'
+          - image: mysql
+            version: 8.0
+            port: 3306
+            options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            env:
+              MYSQL_USER: 'flow'
+              MYSQL_PASSWORD: 'flow'
+              MYSQL_DATABASE: 'flow'
+              MYSQL_ROOT_PASSWORD: 'root'
+          - image: mysql
+            version: 5.7
+            port: 3306
+            options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+            env:
+              MYSQL_USER: 'flow'
+              MYSQL_PASSWORD: 'flow'
+              MYSQL_DATABASE: 'flow'
+              MYSQL_ROOT_PASSWORD: 'root'
 
     services:
-      mysql:
-        image: 'mysql:${{ matrix.mysql-version }}'
-        env:
-          MYSQL_USER: flow
-          MYSQL_PASSWORD: flow
-          MYSQL_DATABASE: flow
-          MYSQL_ROOT_PASSWORD: root
+      database:
+        image: ${{ matrix.database.image }}:${{ matrix.database.version }}
         ports:
-          - '3306:3306'
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+          - ${{ matrix.database.port }}:${{ matrix.database.port }}
+        env: ${{ matrix.database.env }}
+        options: ${{ matrix.database.options }}
 
     env:
       APP_ENV: true
       FLOW_CONTEXT: Testing/Functional
       FLOW_DIST_FOLDER: flow-base-distribution
-      MYSQL_HOST: '127.0.0.1'
-      MYSQL_PORT: 3306
-      MYSQL_DATABASE: 'flow'
-      MYSQL_USER: 'flow'
-      MYSQL_PASSWORD: 'flow'
 
     steps:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: mbstring, xml, json, zlib, iconv, intl, pdo_sqlite
+          extensions: mbstring, xml, json, zlib, iconv, intl, pdo_pgsql, pdo_mysql
           ini-values: opcache.fast_shutdown=0
 
       - name: "[1/5] Create composer project - Cache composer dependencies"
@@ -53,7 +78,7 @@ jobs:
             php-${{ matrix.php-version }}-flow-
 
       - name: "[2/5] Create composer project - No install"
-        run: composer create-project neos/flow-base-distribution ${{ env.FLOW_DIST_FOLDER }} --prefer-dist --no-progress --no-install "^${{ matrix.flow-version }}"
+        run: composer create-project neos/flow-base-distribution ${{ env.FLOW_DIST_FOLDER }} --prefer-dist --no-progress --no-install "${{ matrix.flow-version }}"
 
       - name: "[3/5] Allow neos composer plugin"
         run: composer config --no-plugins allow-plugins.neos/composer-plugin true
@@ -73,11 +98,13 @@ jobs:
           path: ${{ env.FLOW_DIST_FOLDER }}/DistributionPackages/Netlogix.JobQueue.Scheduled
 
       - name: Install netlogix/jobqueue-scheduled
-        run: composer require netlogix/jobqueue-scheduled:@dev
+        run: |
+          composer config minimum-stability dev
+          composer require netlogix/jobqueue-scheduled:@dev
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: "Copy Settings.yaml.dist"
-        run: cp DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.dist Configuration/Testing/Settings.yaml
+        run: "cp DistributionPackages/Netlogix.JobQueue.Scheduled/Settings.yaml.${{ matrix.database.image }}.dist Configuration/Testing/Settings.yaml"
         working-directory: ${{ env.FLOW_DIST_FOLDER }}
 
       - name: Run tests

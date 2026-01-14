@@ -1,0 +1,11 @@
+Neos:
+  Flow:
+    persistence:
+      backendOptions:
+        driver: pdo_pgsql
+        host: localhost
+        dbname: 'flow'
+        port: '5432'
+        user: 'flow'
+        password: 'flow'
+        charset: 'utf8'

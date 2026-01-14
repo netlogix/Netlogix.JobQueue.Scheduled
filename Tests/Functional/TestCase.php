@@ -35,6 +35,12 @@ class TestCase extends FunctionalTestCase
             ->executeStatement('DELETE FROM ' . ScheduledJob::TABLE_NAME);
     }
 
+    public function tearDown(): void
+    {
+        parent::tearDown();
+        $this->objectManager->forgetInstance(Scheduler::class);
+    }
+
     protected static function getJobQueueJob(): JobQueueJob
     {
         return JobQueueJob::first();

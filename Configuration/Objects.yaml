@@ -1,2 +1,7 @@
 Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation:
   className: Netlogix\JobQueue\Scheduled\DueDateCalculation\FloatingTimeBaseForDueDateCalculation
+
+Netlogix\JobQueue\Scheduled\Domain\Scheduler:
+  scope: singleton
+  factoryObjectName: Netlogix\JobQueue\Scheduled\Domain\SchedulerFactory
+  factoryMethodName: create
