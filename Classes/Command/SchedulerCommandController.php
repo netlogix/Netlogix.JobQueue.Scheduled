@@ -61,49 +61,7 @@ class SchedulerCommandController extends CommandController
         string $groupName,
         int $minutes = 10
     ): void {
-        $tableName = ScheduledJob::TABLE_NAME;
-        $platform =  $this->connection->getDbal()->getDatabasePlatform();
-        if ($platform instanceof MySqlPlatform)
-        {
-            $sql = <<<MySQL
-                UPDATE {$tableName}
-                SET running = 0,
-                    claimed = '',
-                    incarnation = incarnation + 1
-                WHERE running = 1
-                  AND claimed NOT LIKE 'failed(%)'
-                  AND groupname = :groupName
-                  AND activity < NOW() - INTERVAL :minutes MINUTE
-            MySQL;
-        }
-        else if ($platform instanceof PostgreSqlPlatform || $platform instanceof PostgreSQL94Platform)
-        {
-            $sql = <<<PostgreSQL
-                UPDATE {$tableName}
-                SET running = FALSE,
-                    claimed = '',
-                    incarnation = incarnation + 1
-                WHERE running = TRUE
-                  AND claimed NOT LIKE 'failed(%)'
-                  AND groupname = :groupName
-                  AND activity < NOW() - make_interval(mins => :minutes)
-            PostgreSQL;
-        } else {
-            throw new \RuntimeException("unsupported database platform " . $this->connection->getDbal()->getDatabasePlatform()->getName());
-        }
-
-        $freed = $this->connection->executeQuery(
-            sql: $sql,
-            params: [
-                'groupName' => $groupName,
-                'minutes' => max($minutes, 1),
-            ],
-            types: [
-                'groupName' => Types::STRING,
-                'minutes' => Types::SMALLINT,
-            ],
-        )->rowCount();
-
+        $freed = $this->scheduler->resetStaleJobs($groupName, $minutes);
         if ($freed) {
             $this->outputLine('Freed ' . $freed . ' stale jobs.');
         }

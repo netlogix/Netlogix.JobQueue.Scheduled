@@ -75,4 +75,15 @@ class PostgreSQLScheduler extends AbstractScheduler {
             END;
         PostgreSQL;
 
+    protected const RESET_STALE_JOBS_QUERY = <<<PostgreSQL
+        UPDATE netlogix_jobqueue_scheduled_job
+        SET running = 0,
+            claimed = '',
+            incarnation = incarnation + 1
+        WHERE running = 1
+          AND claimed NOT LIKE 'failed(%)'
+          AND groupname = :groupName
+          AND activity < NOW() - make_interval(mins => :minutes)
+        PostgreSQL;
+
 }

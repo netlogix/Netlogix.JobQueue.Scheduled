@@ -110,4 +110,15 @@ class MySQLScheduler extends AbstractScheduler  {
                        END
             MySQL;
 
+    protected const RESET_STALE_JOBS_QUERY = <<<MySQL
+        UPDATE netlogix_jobqueue_scheduled_job
+        SET running = 0,
+            claimed = '',
+            incarnation = incarnation + 1
+        WHERE running = 1
+          AND claimed NOT LIKE 'failed(%)'
+          AND groupname = :groupName
+          AND activity < NOW() - INTERVAL :minutes MINUTE
+        MySQL;
+
 }
