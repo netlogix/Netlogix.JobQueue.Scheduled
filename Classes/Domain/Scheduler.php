@@ -22,4 +22,6 @@ interface Scheduler {
 
     public function activity(ScheduledJob $job): void;
 
+    public function resetStaleJobs(string $groupName, int $minutes): int;
+
 }

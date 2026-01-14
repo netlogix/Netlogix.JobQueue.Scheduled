@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Types\Types;
 use InvalidArgumentException;
@@ -40,6 +41,7 @@ abstract class AbstractScheduler implements Scheduler
     protected const SELECT_QUERY = "";
     protected const RELEASE_QUERY = "";
     protected const SCHEDULE_QUERY = "";
+    protected const RESET_STALE_JOBS_QUERY = "";
 
     public function injectConnection(Connection $connection): void
     {
@@ -272,6 +274,28 @@ abstract class AbstractScheduler implements Scheduler
                     'identifier' => Types::STRING,
                 ]
             );
+    }
+
+    /**
+     * Reset stale jobs that have not changed for too long.
+     *
+     * @param string $groupName Free jobs in this group only
+     * @param int $minutes Count jobs as stale if their last activity was more than these many minutes ago
+     * @throws Exception
+     * @return int Number of freed jobs
+     */
+    public function resetStaleJobs(string $groupName, int $minutes): int {
+        return $this->dbal->executeQuery(
+            sql: static::RESET_STALE_JOBS_QUERY,
+            params: [
+                'groupName' => $groupName,
+                'minutes' => max($minutes, 1),
+            ],
+            types: [
+                'groupName' => Types::STRING,
+                'minutes' => Types::SMALLINT,
+            ],
+        )->rowCount();
     }
 
     protected function scheduleJob(ScheduledJob $job): void
