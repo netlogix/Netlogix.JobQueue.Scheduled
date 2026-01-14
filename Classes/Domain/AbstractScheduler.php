@@ -13,6 +13,7 @@ use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
 use Netlogix\Retry\Retry;
+use Neos\Flow\Annotations as Flow;
 
 use function array_filter;
 use function in_array;
@@ -240,7 +241,17 @@ abstract class AbstractScheduler implements Scheduler
                     'failed' => Types::STRING,
                 ]
             );
+
+        $this->emitFailed($job, $reason);
     }
+
+    /**
+     * @param ScheduledJob $job
+     * @param string $reason
+     * @return void
+     * @Flow\Signal
+     */
+    public function emitFailed(ScheduledJob $job, string $reason): void {}
 
     public function activity(ScheduledJob $job): void
     {
