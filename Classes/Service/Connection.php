@@ -49,6 +49,15 @@ class Connection
         });
     }
 
+    // requires dbal autocommit to be enabled
+    public function fetchOneReadUncommited(string $query, array $params = [], array $types = [])
+    {
+        return $this->withAutoReconnectAndRetry(function () use ($query, $params, $types) {
+            $this->dbal->executeQuery("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
+            return $this->dbal->fetchOne($query, $params, $types);
+        });
+    }
+
     public function executeQuery($sql, array $params = [], $types = [], ?QueryCacheProfile $qcp = null)
     {
         return $this->withAutoReconnectAndRetry(function () use ($sql, $params, $types, $qcp) {

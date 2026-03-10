@@ -343,4 +343,8 @@ abstract class AbstractScheduler implements Scheduler
             throw new InvalidArgumentException(\sprintf('Group name "%s" is not active', $groupName), 1721393320);
         }
     }
+
+    public function getConnection(): Connection {
+        return $this->dbal;
+    }
 }

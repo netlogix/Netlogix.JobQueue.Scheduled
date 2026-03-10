@@ -5,3 +5,8 @@ Netlogix\JobQueue\Scheduled\Domain\Scheduler:
   scope: singleton
   factoryObjectName: Netlogix\JobQueue\Scheduled\Domain\SchedulerFactory
   factoryMethodName: create
+
+Netlogix\JobQueue\Scheduled\Service\JobStatusService:
+  scope: singleton
+  factoryObjectName: Netlogix\JobQueue\Scheduled\Service\JobStatusServiceFactory
+  factoryMethodName: create
