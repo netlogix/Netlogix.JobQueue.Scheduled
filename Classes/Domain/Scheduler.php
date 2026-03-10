@@ -3,6 +3,7 @@
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Service\Connection;
 
 interface Scheduler {
 
@@ -24,4 +25,5 @@ interface Scheduler {
 
     public function resetStaleJobs(string $groupName, int $minutes): int;
 
+    public function getConnection(): Connection;
 }
