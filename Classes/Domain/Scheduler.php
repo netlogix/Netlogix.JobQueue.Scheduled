@@ -26,4 +26,6 @@ interface Scheduler {
     public function resetStaleJobs(string $groupName): int;
 
     public function getConnection(): Connection;
+
+    public function getStaleJobTimeoutSeconds(): int;
 }

@@ -349,4 +349,8 @@ abstract class AbstractScheduler implements Scheduler
     public function getConnection(): Connection {
         return $this->dbal;
     }
+
+    public function getStaleJobTimeoutSeconds(): int {
+        return $this->staleJobTimeoutSecs;
+    }
 }
