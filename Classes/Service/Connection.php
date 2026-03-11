@@ -8,6 +8,7 @@ use Doctrine\DBAL\Cache\QueryCacheProfile;
 use Doctrine\DBAL\Connection as DBALConnection;
 use Doctrine\DBAL\Exception\ConnectionLost;
 use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\DBAL\TransactionIsolationLevel;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -49,12 +50,18 @@ class Connection
         });
     }
 
-    // requires dbal autocommit to be enabled
     public function fetchOneReadUncommited(string $query, array $params = [], array $types = [])
     {
         return $this->withAutoReconnectAndRetry(function () use ($query, $params, $types) {
-            $this->dbal->executeQuery("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
-            return $this->dbal->fetchOne($query, $params, $types);
+            $previous = $this->dbal->getTransactionIsolation();
+            try {
+                $this->dbal->setTransactionIsolation(TransactionIsolationLevel::READ_UNCOMMITTED);
+                return $this->dbal->transactional(function () use ($query, $params, $types) {
+                    return $this->dbal->fetchOne($query, $params, $types);
+                });
+            } finally {
+                $this->dbal->setTransactionIsolation($previous);
+            }
         });
     }
 
