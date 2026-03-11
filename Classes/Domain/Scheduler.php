@@ -23,7 +23,7 @@ interface Scheduler {
 
     public function activity(ScheduledJob $job): void;
 
-    public function resetStaleJobs(string $groupName, int $minutes): int;
+    public function resetStaleJobs(string $groupName): int;
 
     public function getConnection(): Connection;
 }

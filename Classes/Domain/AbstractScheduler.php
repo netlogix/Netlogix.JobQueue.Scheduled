@@ -37,6 +37,9 @@ abstract class AbstractScheduler implements Scheduler
      */
     protected TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation;
 
+    #[Flow\InjectConfiguration(path: 'staleJobTimeout')]
+    protected int $staleJobTimeoutSecs;
+
     protected const CLAIM_QUERY = "";
     protected const SELECT_QUERY = "";
     protected const RELEASE_QUERY = "";
@@ -280,16 +283,15 @@ abstract class AbstractScheduler implements Scheduler
      * Reset stale jobs that have not changed for too long.
      *
      * @param string $groupName Free jobs in this group only
-     * @param int $minutes Count jobs as stale if their last activity was more than these many minutes ago
      * @throws Exception
      * @return int Number of freed jobs
      */
-    public function resetStaleJobs(string $groupName, int $minutes): int {
+    public function resetStaleJobs(string $groupName): int {
         return $this->dbal->executeQuery(
             sql: static::RESET_STALE_JOBS_QUERY,
             params: [
                 'groupName' => $groupName,
-                'minutes' => max($minutes, 1),
+                'seconds' => max($this->staleJobTimeoutSecs, 1),
             ],
             types: [
                 'groupName' => Types::STRING,

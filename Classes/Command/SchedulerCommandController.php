@@ -54,14 +54,11 @@ class SchedulerCommandController extends CommandController
      * Reset stale jobs that have not changed for too long.
      *
      * @param string $groupName Free jobs in this group only
-     * @param int $minutes Count jobs as stale if their last activity was more than these many minutes ago
-     * @throws Exception
      */
     public function resetStaleJobsCommand(
         string $groupName,
-        int $minutes = 10
     ): void {
-        $freed = $this->scheduler->resetStaleJobs($groupName, $minutes);
+        $freed = $this->scheduler->resetStaleJobs($groupName);
         if ($freed) {
             $this->outputLine('Freed ' . $freed . ' stale jobs.');
         }
