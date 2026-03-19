@@ -83,7 +83,7 @@ class PostgreSQLScheduler extends AbstractScheduler {
         WHERE running = 1
           AND claimed NOT LIKE 'failed(%)'
           AND groupname = :groupName
-          AND activity < NOW() - make_interval(mins => :minutes)
+          AND activity < NOW() - make_interval(secs => :seconds)
         PostgreSQL;
 
 }

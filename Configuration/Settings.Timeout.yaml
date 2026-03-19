@@ -1,0 +1,8 @@
+Netlogix:
+  JobQueue:
+    Scheduled:
+
+      # Time (in seconds) of inactivity (no updates to the jobs activity timestamp column) after which a job
+      # is considered stale and needs to be reset (see SchedulerCommandController::resetStaleJobsCommand)
+      # in order to be picked up again.
+      staleJobTimeout: 60
