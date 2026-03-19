@@ -283,15 +283,19 @@ abstract class AbstractScheduler implements Scheduler
      * Reset stale jobs that have not changed for too long.
      *
      * @param string $groupName Free jobs in this group only
+     * @param int|null $minutes Only free jobs that are stale for at least this many minutes. @deprecated Use staleJobTimeout configuration setting instead.
      * @throws Exception
      * @return int Number of freed jobs
      */
-    public function resetStaleJobs(string $groupName): int {
+    public function resetStaleJobs(
+        string $groupName,
+        ?int $minutes = null
+    ): int {
         return $this->dbal->executeQuery(
             sql: static::RESET_STALE_JOBS_QUERY,
             params: [
                 'groupName' => $groupName,
-                'seconds' => max($this->staleJobTimeoutSecs, 1),
+                'seconds' => max($minutes === null ?  $this->staleJobTimeoutSecs : $minutes * 60, 1),
             ],
             types: [
                 'groupName' => Types::STRING,
