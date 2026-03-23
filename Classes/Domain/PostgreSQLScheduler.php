@@ -20,6 +20,8 @@ class PostgreSQLScheduler extends AbstractScheduler {
               AND claimed = ''
               AND running = 0
             ORDER BY duedate ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
         ) AS delinquents
         WHERE j.identifier = delinquents.identifier
           AND j.claimed = '';
@@ -43,6 +45,8 @@ class PostgreSQLScheduler extends AbstractScheduler {
             SET running = 1,
                 activity = NOW()
             WHERE claimed = :claimed
+              AND groupname = :groupname
+              AND running = 2
         PostgreSQL;
 
 
