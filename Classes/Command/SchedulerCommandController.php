@@ -171,9 +171,9 @@ class SchedulerCommandController extends CommandController
             $process->on(Pool::EVENT_EXIT, function () use ($pool, $retry, $ping, $pollScheduler, &$numberOfHandledJobs) {
                 $pool->eventLoop->cancelTimer($ping);
                 $numberOfHandledJobs--;
-                if ($numberOfHandledJobs === 0) {
-                    ($numberOfHandledJobs === 0) && $retry->scheduleAll();
-                }
+if ($numberOfHandledJobs === 0) {
+    $retry->scheduleAll();
+}
                 // A slot just freed up - pick up the next due job without waiting for the next periodic tick.
                 $pollScheduler?->requestImmediatePoll();
             });
