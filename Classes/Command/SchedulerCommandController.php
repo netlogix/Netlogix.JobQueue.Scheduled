@@ -12,6 +12,7 @@ use Doctrine\DBAL\Types\Types;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
+use Netlogix\JobQueue\Polling\PollScheduler;
 use Netlogix\JobQueue\Pool\Pool;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
@@ -90,14 +91,21 @@ class SchedulerCommandController extends CommandController
             outputResults: $outputResults,
             preforkSize: $preforkSize
         )
-            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, $pollingIntervalInSeconds, &$queueDueJobs): void {
-                // Check for new jobs in the database and schedule as much as the pool has capacity for
-                $queueDueJobs = $pool->eventLoop->addPeriodicTimer(
-                    interval: $pollingIntervalInSeconds,
-                    callback: function () use ($pool, $groupName, $parallel) {
-                        $this->queueDueJobs(pool: $pool, groupName: $groupName, parallel: $parallel);
-                    }
+            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, $pollingIntervalInSeconds): void {
+                $scheduler = null;
+
+                // Check for new jobs in the database and schedule as much as the pool has capacity for.
+                // Capacity check and slot occupation happen synchronously inside queueDueJobs, so the
+                // periodic poll and the immediate poll on job completion can never exceed $parallel.
+                $scheduler = PollScheduler::create(
+                    loop: $pool->eventLoop,
+                    tryToPickUpWork: function () use ($pool, $groupName, $parallel, &$scheduler): void {
+                        $this->queueDueJobs(pool: $pool, groupName: $groupName, parallel: $parallel, pollScheduler: $scheduler);
+                    },
+                    hasCapacity: fn () => count($pool) < $parallel,
+                    interval: $pollingIntervalInSeconds
                 );
+                $scheduler->start();
 
                 // Keep the database connection alive
                 $ping = $pool->eventLoop->addPeriodicTimer(
@@ -111,8 +119,8 @@ class SchedulerCommandController extends CommandController
                 if ($stopPollingAfter) {
                     $pool->eventLoop->addTimer(
                         interval: $stopPollingAfter,
-                        callback: function () use ($pool, $queueDueJobs, $ping) {
-                            $pool->eventLoop->cancelTimer($queueDueJobs);
+                        callback: function () use ($pool, $scheduler, $ping) {
+                            $scheduler->stop();
                             $checkForPoolToClear = $pool->eventLoop->addPeriodicTimer(
                                 interval: 1,
                                 callback: function () use ($pool, $ping, &$checkForPoolToClear) {
@@ -132,9 +140,10 @@ class SchedulerCommandController extends CommandController
      * @param Pool $pool A pool of subprocesses waiting for new jobs to execute
      * @param string $groupName Handle only jobs of this group
      * @param int $parallel Number of jobs to handle in parallel
+     * @param ?PollScheduler $pollScheduler Re-poll immediately once a slot frees up
      * @return int Number of handled jobs
      */
-    protected function queueDueJobs(Pool $pool, string $groupName, int $parallel): int
+    protected function queueDueJobs(Pool $pool, string $groupName, int $parallel, ?PollScheduler $pollScheduler = null): int
     {
         $numberOfHandledJobs = 0;
         $retry = new SchedulingCoordinator($this->scheduler);
@@ -159,12 +168,14 @@ class SchedulerCommandController extends CommandController
                 }
             );
 
-            $process->on(Pool::EVENT_EXIT, function () use ($pool, $retry, $ping, &$numberOfHandledJobs) {
+            $process->on(Pool::EVENT_EXIT, function () use ($pool, $retry, $ping, $pollScheduler, &$numberOfHandledJobs) {
                 $pool->eventLoop->cancelTimer($ping);
                 $numberOfHandledJobs--;
-                if ($numberOfHandledJobs === 0) {
-                    ($numberOfHandledJobs === 0) && $retry->scheduleAll();
-                }
+if ($numberOfHandledJobs === 0) {
+    $retry->scheduleAll();
+}
+                // A slot just freed up - pick up the next due job without waiting for the next periodic tick.
+                $pollScheduler?->requestImmediatePoll();
             });
             $process->on(Pool::EVENT_SUCCESS, fn () => $this->scheduler->release($next));
             $process->on(Pool::EVENT_ERROR, fn () => $retry->markJobForRescheduling($next));
