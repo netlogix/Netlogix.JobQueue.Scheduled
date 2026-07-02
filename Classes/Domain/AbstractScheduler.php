@@ -51,8 +51,8 @@ abstract class AbstractScheduler implements Scheduler
         $this->dbal = $connection;
     }
 
-    public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation): void
-    {
+    public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation
+    ): void {
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
 
@@ -105,7 +105,7 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
-            ->task(fn() => $this->dbal
+            ->task(fn () => $this->dbal
                 ->executeQuery(
                     $claimQuery,
                     [
@@ -148,7 +148,7 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
-            ->task(fn() => $this->dbal
+            ->task(fn () => $this->dbal
                 ->executeQuery(
                     $release,
                     [
@@ -166,10 +166,10 @@ abstract class AbstractScheduler implements Scheduler
             queue: $row['queue'],
             duedate: new DateTimeImmutable($row['duedate']),
             groupName: $groupName,
-            identifier: (string)$row['identifier'],
-            incarnation: (int)$row['incarnation'],
-            claimed: (string)$row['claimed'],
-            running: (int)$row['running']
+            identifier: (string) $row['identifier'],
+            incarnation: (int) $row['incarnation'],
+            claimed: (string) $row['claimed'],
+            running: (int) $row['running']
         );
     }
 
@@ -180,12 +180,13 @@ abstract class AbstractScheduler implements Scheduler
         }
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $delete = /** @lang MySQL */ <<<"MySQL"
-            DELETE FROM {$tableName}
-            WHERE groupname = :groupname
-              AND identifier = :identifier
-              AND claimed = :claimed
-            MySQL;
+        $delete = /** @lang MySQL */
+            <<<"MySQL"
+                DELETE FROM {$tableName}
+                WHERE groupname = :groupname
+                  AND identifier = :identifier
+                  AND claimed = :claimed
+                MySQL;
         $deleteResult = $this->dbal
             ->executeQuery(
                 $delete,
@@ -196,14 +197,15 @@ abstract class AbstractScheduler implements Scheduler
                 ]
             );
         if ($deleteResult->rowCount() === 0) {
-            $free = /** @lang MySQL */ <<<MySQL
-                UPDATE {$tableName}
-                SET running = 0,
-                    activity = NOW()
-                WHERE groupname = :groupname
-                  AND identifier = :identifier
-                  AND claimed = ''
-            MySQL;
+            $free = /** @lang MySQL */
+                <<<MySQL
+                    UPDATE {$tableName}
+                    SET running = 0,
+                        activity = NOW()
+                    WHERE groupname = :groupname
+                      AND identifier = :identifier
+                      AND claimed = ''
+                    MySQL;
             $this->dbal
                 ->executeQuery(
                     $free,
@@ -225,13 +227,14 @@ abstract class AbstractScheduler implements Scheduler
 
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $update = /** @lang MySQL */ <<<MySQL
-            UPDATE {$tableName}
-            SET claimed = :failed,
-                running = 0,
-                activity = NOW()
-            WHERE identifier = :identifier
-        MySQL;
+        $update = /** @lang MySQL */
+            <<<MySQL
+                UPDATE {$tableName}
+                SET claimed = :failed,
+                    running = 0,
+                    activity = NOW()
+                WHERE identifier = :identifier
+                MySQL;
         $this->dbal
             ->executeQuery(
                 $update,
@@ -256,17 +259,20 @@ abstract class AbstractScheduler implements Scheduler
      * @return void
      * @Flow\Signal
      */
-    public function emitFailed(ScheduledJob $job, string $reason): void {}
+    public function emitFailed(ScheduledJob $job, string $reason): void
+    {
+    }
 
     public function activity(ScheduledJob $job): void
     {
         $tableName = ScheduledJob::TABLE_NAME;
 
-        $update = /** @lang MySQL */ <<<"MySQL"
-            UPDATE {$tableName}
-            SET activity = NOW()
-            WHERE identifier = :identifier
-            MySQL;
+        $update = /** @lang MySQL */
+            <<<"MySQL"
+                UPDATE {$tableName}
+                SET activity = NOW()
+                WHERE identifier = :identifier
+                MySQL;
         $this->dbal
             ->executeQuery(
                 $update,
@@ -284,8 +290,8 @@ abstract class AbstractScheduler implements Scheduler
      *
      * @param string $groupName Free jobs in this group only
      * @param int|null $minutes Only free jobs that are stale for at least this many minutes. @deprecated Use staleJobTimeout configuration setting instead.
-     * @throws Exception
      * @return int Number of freed jobs
+     * @throws Exception
      */
     public function resetStaleJobs(
         string $groupName,
@@ -295,7 +301,7 @@ abstract class AbstractScheduler implements Scheduler
             sql: static::RESET_STALE_JOBS_QUERY,
             params: [
                 'groupName' => $groupName,
-                'seconds' => max($minutes === null ?  $this->staleJobTimeoutSecs : $minutes * 60, 1),
+                'seconds' => max($minutes === null ? $this->staleJobTimeoutSecs : $minutes * 60, 1),
             ],
             types: [
                 'groupName' => Types::STRING,
@@ -315,7 +321,7 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.05, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
-            ->task(fn() => $this->dbal
+            ->task(fn () => $this->dbal
                 ->executeQuery(
                     $statement,
                     [
@@ -350,11 +356,13 @@ abstract class AbstractScheduler implements Scheduler
         }
     }
 
-    public function getConnection(): Connection {
+    public function getConnection(): Connection
+    {
         return $this->dbal;
     }
 
-    public function getStaleJobTimeoutSeconds(): int {
+    public function getStaleJobTimeoutSeconds(): int
+    {
         return $this->staleJobTimeoutSecs;
     }
 }
