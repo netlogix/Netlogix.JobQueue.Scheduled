@@ -9,12 +9,14 @@ use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Types\Types;
 use InvalidArgumentException;
+use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Utility\Algorithms;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\DueDateCalculation\TimeBaseForDueDateCalculation;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
 use Netlogix\Retry\Retry;
 use Neos\Flow\Annotations as Flow;
+use Throwable;
 
 use function array_filter;
 use function in_array;
@@ -37,6 +39,11 @@ abstract class AbstractScheduler implements Scheduler
      */
     protected TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation;
 
+    /**
+     * @var ThrowableStorageInterface
+     */
+    protected ThrowableStorageInterface $throwableStorage;
+
     #[Flow\InjectConfiguration(path: 'staleJobTimeout')]
     protected int $staleJobTimeoutSecs;
 
@@ -54,6 +61,11 @@ abstract class AbstractScheduler implements Scheduler
     public function injectTimeBaseForDueDateCalculation(TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation
     ): void {
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
+    }
+
+    public function injectThrowableStorage(ThrowableStorageInterface $throwableStorage): void
+    {
+        $this->throwableStorage = $throwableStorage;
     }
 
     public function injectSettings(array $settings)
@@ -105,20 +117,33 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
-            ->task(fn () => $this->dbal
-                ->executeQuery(
-                    $claimQuery,
-                    [
-                        'now' => $this->timeBaseForDueDateCalculation->getNow(),
-                        'groupname' => $groupName,
-                        'claimed' => $claim,
-                    ],
-                    [
-                        'now' => Types::DATETIME_IMMUTABLE,
-                        'groupname' => Types::STRING,
-                        'claimed' => Types::STRING,
+            ->onError(
+                errorHandler: fn (Throwable $throwable, int $incarnation) => $this->throwableStorage->logThrowable(
+                    throwable: $throwable,
+                    additionalData: [
+                        'incarnation' => $incarnation,
+                        'claim' => $claim,
+                        'groupName' => $groupName,
+                        'step' => 'claim',
                     ]
-                ));
+                )
+            )
+            ->task(function () use ($claimQuery, $groupName, $claim) {
+                return $this->dbal
+                    ->executeQuery(
+                        $claimQuery,
+                        [
+                            'now' => $this->timeBaseForDueDateCalculation->getNow(),
+                            'groupname' => $groupName,
+                            'claimed' => $claim,
+                        ],
+                        [
+                            'now' => Types::DATETIME_IMMUTABLE,
+                            'groupname' => Types::STRING,
+                            'claimed' => Types::STRING,
+                        ]
+                    );
+            });
 
         $select = static::SELECT_QUERY;
 
@@ -148,6 +173,17 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.5, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
+            ->onError(
+                errorHandler: fn (Throwable $throwable, int $incarnation) => $this->throwableStorage->logThrowable(
+                    throwable: $throwable,
+                    additionalData: [
+                        'incarnation' => $incarnation,
+                        'claim' => $claim,
+                        'groupName' => $groupName,
+                        'step' => 'release',
+                    ]
+                )
+            )
             ->task(fn () => $this->dbal
                 ->executeQuery(
                     $release,
@@ -321,6 +357,16 @@ abstract class AbstractScheduler implements Scheduler
              */
             ->withExponentialBackoff(retryInterval: 0.05, maxRetries: 5)
             ->onExceptionsOfType(RetryableException::class)
+            ->onError(
+                errorHandler: fn (Throwable $throwable, int $incarnation) => $this->throwableStorage->logThrowable(
+                    throwable: $throwable,
+                    additionalData: [
+                        'incarnation' => $incarnation,
+                        'groupName' => $job->getGroupName(),
+                        'step' => 'schedule',
+                    ]
+                )
+            )
             ->task(fn () => $this->dbal
                 ->executeQuery(
                     $statement,
