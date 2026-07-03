@@ -171,4 +171,40 @@ class RetrievingTest extends TestCase
         assert($retrievedJob instanceof ScheduledJob);
         self::assertNotEquals('', $retrievedJob->getClaimed());
     }
+
+    /**
+     * A single claim must mark exactly one row, even when several jobs are due.
+     *
+     * The PostgreSQL claim historically used an inline
+     * "FROM (SELECT ... LIMIT 1 FOR UPDATE SKIP LOCKED)" subquery. The planner
+     * may put that subquery on the inner side of a nested-loop join and
+     * re-evaluate it per row; with SKIP LOCKED each re-evaluation returns the
+     * next candidate, so multiple rows get claimed at once with the same claim
+     * value. Whether this happens is plan (i.e. table-size) dependent, so this
+     * test documents the invariant rather than reliably reproducing the plan.
+     *
+     * @test
+     */
+    public function A_single_claim_marks_exactly_one_row(): void
+    {
+        foreach (['id-1', 'id-2', 'id-3'] as $identifier) {
+            $this->scheduler->schedule(
+                ScheduledJob::createNew(
+                    job: self::getJobQueueJob(),
+                    queue: self::getQueueName(),
+                    duedate: $this->now->modify('- 1 day'),
+                    groupName: Scheduler::DEFAULT_GROUP_NAME,
+                    identifier: $identifier
+                )
+            );
+        }
+
+        $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
+
+        $claimedRows = (int)$this->scheduler->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM ' . ScheduledJob::TABLE_NAME . " WHERE claimed <> ''"
+        );
+
+        self::assertSame(1, $claimedRows, 'A single claim must mark exactly one row');
+    }
 }
