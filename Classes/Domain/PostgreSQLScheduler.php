@@ -5,14 +5,25 @@ namespace Netlogix\JobQueue\Scheduled\Domain;
 class PostgreSQLScheduler extends AbstractScheduler {
 
     /**
+     * The candidate row MUST be selected in a `MATERIALIZED` CTE, never in an
+     * inline `FROM (SELECT ... LIMIT 1 FOR UPDATE SKIP LOCKED)` subquery.
+     *
+     * PostgreSQL is free to place such an inline subquery on the inner side of
+     * a nested-loop join and re-evaluate it once per outer row. Combined with
+     * `FOR UPDATE SKIP LOCKED`, every re-evaluation skips the rows already
+     * locked by previous iterations and returns the *next* candidate, so the
+     * join ends up matching - and claiming - more than the single intended row
+     * (all with the same claim value). Whether this happens depends on the
+     * query plan, i.e. on table size and statistics, which is why it only
+     * surfaces on large production tables and not on small dev databases.
+     *
+     * `AS MATERIALIZED` forces the candidate selection to be evaluated exactly
+     * once, so `LIMIT 1` reliably bounds the update to a single row.
+     *
      * @lang PostgreSQL
      */
     protected const CLAIM_QUERY = <<<PostgreSQL
-        UPDATE netlogix_jobqueue_scheduled_job AS j
-        SET claimed  = :claimed,
-            running  = 2,
-            activity = NOW()
-        FROM (
+        WITH delinquents AS MATERIALIZED (
             SELECT identifier
             FROM netlogix_jobqueue_scheduled_job
             WHERE duedate <= :now
@@ -22,7 +33,12 @@ class PostgreSQLScheduler extends AbstractScheduler {
             ORDER BY duedate ASC
             LIMIT 1
             FOR UPDATE SKIP LOCKED
-        ) AS delinquents
+        )
+        UPDATE netlogix_jobqueue_scheduled_job AS j
+        SET claimed  = :claimed,
+            running  = 2,
+            activity = NOW()
+        FROM delinquents
         WHERE j.identifier = delinquents.identifier
           AND j.claimed = '';
         PostgreSQL;

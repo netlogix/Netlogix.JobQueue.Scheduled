@@ -3,10 +3,12 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
+use Doctrine\DBAL\Connection as DBALConnection;
 use Doctrine\DBAL\Exception\DeadlockException;
+use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
-use Netlogix\JobQueue\Scheduled\Service\Connection;
+use Netlogix\JobQueue\Scheduled\Tests\Functional\Service\TestableConnection;
 
 class SchedulingTest extends TestCase
 {
@@ -112,32 +114,26 @@ class SchedulingTest extends TestCase
      */
     public function Scheduling_jobs_retries_RetryableExceptions(): void
     {
-        $connection = self::createMock(Connection::class);
-        $connection->expects(self::any())
+        // Retrying is the Connection's responsibility (see ConnectionTest), so
+        // we drive the real retry over a DBAL connection that always deadlocks
+        // instead of mocking the Connection away. The schedule query is
+        // attempted once plus one per retry, then the exception propagates.
+        $dbal = self::createMock(DBALConnection::class);
+        $dbal->expects(self::exactly(TestableConnection::MAX_RETRIES + 1))
             ->method('executeQuery')
             ->willThrowException(self::createStub(DeadlockException::class));
 
+        $connection = new TestableConnection($dbal, self::createMock(ThrowableStorageInterface::class));
         $this->scheduler->injectConnection($connection);
 
-        $start = microtime(true);
-        try {
-            $this->scheduler->schedule(
-                ScheduledJob::createNew(
-                    job: self::getJobQueueJob(),
-                    queue: self::getQueueName(),
-                    duedate: self::getDueDate(),
-                    groupName: Scheduler::DEFAULT_GROUP_NAME
-                )
-            );
-        } catch (DeadlockException $e) {
-        }
-        $end = microtime(true);
-        $delta = $end - $start;
-
-        self::assertInstanceOf(DeadlockException::class, $e);
-
-        // guesstimated value is about 1.5
-        self::assertGreaterThan(1, $delta);
-        self::assertLessThan(2, $delta);
+        $this->expectException(DeadlockException::class);
+        $this->scheduler->schedule(
+            ScheduledJob::createNew(
+                job: self::getJobQueueJob(),
+                queue: self::getQueueName(),
+                duedate: self::getDueDate(),
+                groupName: Scheduler::DEFAULT_GROUP_NAME
+            )
+        );
     }
 }

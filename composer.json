@@ -15,7 +15,7 @@
         "neos/flow": "~8.3",
         "netlogix/jobqueue-polling": "^1.0",
         "netlogix/jobqueue-pool": "^1.0",
-        "netlogix/retry": "~1.0",
+        "netlogix/retry": "^1.1",
         "php": "~8.2 || ~8.3"
     },
     "require-dev": {

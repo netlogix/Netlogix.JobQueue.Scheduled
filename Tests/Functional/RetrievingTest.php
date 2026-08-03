@@ -4,13 +4,15 @@ declare(strict_types=1);
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Connection as DBALConnection;
 use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\ORM\EntityManagerInterface;
+use Neos\Flow\Log\ThrowableStorageInterface;
 use Neos\Flow\Persistence\Doctrine\PersistenceManager;
 use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
-use Netlogix\JobQueue\Scheduled\Service\Connection;
+use Netlogix\JobQueue\Scheduled\Tests\Functional\Service\TestableConnection;
 
 use function serialize;
 
@@ -130,26 +132,20 @@ class RetrievingTest extends TestCase
      */
     public function Retry_claiming_when_deadlock_exceptions_happen(): void
     {
-        $connection = self::createMock(Connection::class);
-        $connection->expects(self::any())
+        // Retrying is the Connection's responsibility (see ConnectionTest),
+        // so we drive the real retry over a DBAL connection that always
+        // deadlocks instead of mocking the Connection away. The claim query is
+        // attempted once plus one per retry, then the exception propagates.
+        $dbal = self::createMock(DBALConnection::class);
+        $dbal->expects(self::exactly(TestableConnection::MAX_RETRIES + 1))
             ->method('executeQuery')
             ->willThrowException(self::createStub(DeadlockException::class));
 
+        $connection = new TestableConnection($dbal, self::createMock(ThrowableStorageInterface::class));
         $this->scheduler->injectConnection($connection);
 
-        $start = microtime(true);
-        try {
-            $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
-        } catch (DeadlockException $e) {
-        }
-        $end = microtime(true);
-        $delta = $end - $start;
-
-        self::assertInstanceOf(DeadlockException::class, $e);
-
-        // guesstimated value is 15 and something.
-        self::assertGreaterThan(14, $delta);
-        self::assertLessThan(18, $delta);
+        $this->expectException(DeadlockException::class);
+        $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
     }
 
     /**
@@ -170,5 +166,41 @@ class RetrievingTest extends TestCase
         self::assertInstanceOf(ScheduledJob::class, $retrievedJob);
         assert($retrievedJob instanceof ScheduledJob);
         self::assertNotEquals('', $retrievedJob->getClaimed());
+    }
+
+    /**
+     * A single claim must mark exactly one row, even when several jobs are due.
+     *
+     * The PostgreSQL claim historically used an inline
+     * "FROM (SELECT ... LIMIT 1 FOR UPDATE SKIP LOCKED)" subquery. The planner
+     * may put that subquery on the inner side of a nested-loop join and
+     * re-evaluate it per row; with SKIP LOCKED each re-evaluation returns the
+     * next candidate, so multiple rows get claimed at once with the same claim
+     * value. Whether this happens is plan (i.e. table-size) dependent, so this
+     * test documents the invariant rather than reliably reproducing the plan.
+     *
+     * @test
+     */
+    public function A_single_claim_marks_exactly_one_row(): void
+    {
+        foreach (['id-1', 'id-2', 'id-3'] as $identifier) {
+            $this->scheduler->schedule(
+                ScheduledJob::createNew(
+                    job: self::getJobQueueJob(),
+                    queue: self::getQueueName(),
+                    duedate: $this->now->modify('- 1 day'),
+                    groupName: Scheduler::DEFAULT_GROUP_NAME,
+                    identifier: $identifier
+                )
+            );
+        }
+
+        $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
+
+        $claimedRows = (int)$this->scheduler->getConnection()->fetchOne(
+            'SELECT COUNT(*) FROM ' . ScheduledJob::TABLE_NAME . " WHERE claimed <> ''"
+        );
+
+        self::assertSame(1, $claimedRows, 'A single claim must mark exactly one row');
     }
 }
