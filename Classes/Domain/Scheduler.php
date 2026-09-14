@@ -9,6 +9,12 @@ interface Scheduler {
 
     public const DEFAULT_GROUP_NAME = 'default';
 
+    /**
+     * Schedules jobs, deduplicated by their identifier.
+     *
+     * A job that is already being executed is a case of its own: scheduling its identifier
+     * again during that run outlives the run.
+     */
     public function schedule(ScheduledJob $job, ScheduledJob ...$jobs): void;
 
     public function isScheduled(string $groupName, string $identifier): bool;
