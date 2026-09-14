@@ -87,7 +87,28 @@ $scheduler->schedule($schedulerJob);
 The "schedule" will only schedule a new job if the specified identifier is not already
 scheduled.
 If there are conflicts between the existing due date and the one provided by the new
-job the earliest value is taken.
+job the earliest value is taken, as long as the existing job has not started yet.
+
+
+### Scheduling while a job is running
+
+The deduplication above describes a job that is still waiting. A job that is already being
+executed is a different case, and the scheduler treats it differently on purpose.
+
+A scheduled job may run for minutes or hours. If something schedules the same identifier
+while that run is in progress, the basis the job computed from has almost certainly
+changed - otherwise nobody would have triggered it. The finished run is therefore not the
+final word: the newer schedule outlives it.
+
+Given this order of events:
+
+1. `schedule()` creates the job
+2. a worker claims it, `execute()` starts
+3. `schedule()` is called again for the same identifier
+4. `execute()` returns, the worker calls `release()`
+
+the row is still present afterwards, carrying the due date from step 3. Step 4 does not
+delete it.
 
 
 ## Queue scheduled jobs
