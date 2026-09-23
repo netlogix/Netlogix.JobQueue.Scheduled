@@ -25,7 +25,7 @@ use function min;
 
 class SchedulerCommandController extends CommandController
 {
-    private const TEN_MINUTES_IN_SECONDS = 600;
+    private const THIRTY_MINUTES_IN_SECONDS = 1800;
 
     protected Scheduler $scheduler;
 
@@ -90,12 +90,12 @@ class SchedulerCommandController extends CommandController
      * @param array $groupNames Handle jobs of these groups only, comma separated; all active groups if empty
      * @phpstan-param list<string> $groupNames
      * @param bool $outputResults Write child process output to the console
-     * @param int $stopPollingAfter Stop polling after this many seconds
+     * @param int $stopPollingAfter Once this many seconds have passed, keep polling until no job is running, then exit; 0 never exits
      */
     public function pollForIncomingJobsCommand(
         array $groupNames = [],
         bool $outputResults = false,
-        int $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS
+        int $stopPollingAfter = self::THIRTY_MINUTES_IN_SECONDS
     ): void {
         $groups = $this->resolveGroups($groupNames);
         if ($groups === []) {
@@ -140,19 +140,20 @@ class SchedulerCommandController extends CommandController
             }
         );
 
-        // Once the timeout is reached, wait until the final jobs are done and stop the loop
+        // Once the timeout is reached, keep polling until the first moment no job is running, then stop the loop.
+        // Stopping the poll right away would leave free slots idle while the last jobs drain.
         if ($stopPollingAfter) {
             $loop->addTimer(
                 interval: $stopPollingAfter,
                 callback: function () use ($loop, $pollScheduler, $ping, &$pools) {
-                    $pollScheduler->stop();
                     $checkForPoolsToClear = null;
                     $checkForPoolsToClear = $loop->addPeriodicTimer(
                         interval: 1,
-                        callback: function () use ($loop, $ping, &$pools, &$checkForPoolsToClear) {
+                        callback: function () use ($loop, $pollScheduler, $ping, &$pools, &$checkForPoolsToClear) {
                             if (self::countRunningJobs($pools) !== 0) {
                                 return;
                             }
+                            $pollScheduler->stop();
                             $loop->cancelTimer($ping);
                             if ($checkForPoolsToClear !== null) {
                                 $loop->cancelTimer($checkForPoolsToClear);
