@@ -89,23 +89,23 @@ class JobStatusServiceTest extends TestCase
 
         $entityManager = $this->objectManager->get(EntityManagerInterface::class);
         assert($entityManager instanceof EntityManagerInterface);
+        $connection = $entityManager->getConnection();
+        $activity = $connection->getDatabasePlatform()
+            ->getDateSubSecondsExpression('CURRENT_TIMESTAMP', $secondsSinceActivity);
 
-        $entityManager
-            ->getConnection()
-            ->executeStatement(
-                /** @lang MySQL */ <<<"MySQL"
-                    UPDATE {$tableName}
-                    SET running = :running,
-                        claimed = :claimed,
-                        activity = DATE_SUB(NOW(), INTERVAL :seconds SECOND)
-                    WHERE identifier = :identifier
-                    MySQL,
-                [
-                    'running' => $running,
-                    'claimed' => $claimed,
-                    'seconds' => $secondsSinceActivity,
-                    'identifier' => $identifier,
-                ]
-            );
+        $connection->executeStatement(
+            /** @lang SQL */ <<<"SQL"
+                UPDATE {$tableName}
+                SET running = :running,
+                    claimed = :claimed,
+                    activity = {$activity}
+                WHERE identifier = :identifier
+                SQL,
+            [
+                'running' => $running,
+                'claimed' => $claimed,
+                'identifier' => $identifier,
+            ]
+        );
     }
 }

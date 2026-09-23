@@ -77,21 +77,21 @@ class ResetStaleJobsTest extends TestCase
         );
 
         $tableName = ScheduledJob::TABLE_NAME;
-        $seconds = self::SECONDS_WITHOUT_ACTIVITY;
 
         $entityManager = $this->objectManager->get(EntityManagerInterface::class);
         assert($entityManager instanceof EntityManagerInterface);
+        $connection = $entityManager->getConnection();
+        $activity = $connection->getDatabasePlatform()
+            ->getDateSubSecondsExpression('CURRENT_TIMESTAMP', self::SECONDS_WITHOUT_ACTIVITY);
 
-        $entityManager
-            ->getConnection()
-            ->executeStatement(
-                /** @lang MySQL */ <<<"MySQL"
-                    UPDATE {$tableName}
-                    SET running = 1,
-                        activity = DATE_SUB(NOW(), INTERVAL {$seconds} SECOND)
-                    WHERE identifier = :identifier
-                    MySQL,
-                ['identifier' => $identifier]
-            );
+        $connection->executeStatement(
+            /** @lang SQL */ <<<"SQL"
+                UPDATE {$tableName}
+                SET running = 1,
+                    activity = {$activity}
+                WHERE identifier = :identifier
+                SQL,
+            ['identifier' => $identifier]
+        );
     }
 }
