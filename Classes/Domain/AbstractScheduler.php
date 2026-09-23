@@ -227,6 +227,9 @@ abstract class AbstractScheduler implements Scheduler
             return null;
         }
 
+        // groupname is CHAR(36): PostgreSQL returns it space-padded
+        $groupName = rtrim((string) $row['groupname']);
+
         $this->dbal
             ->executeQuery(
                 sql: $this->buildReleaseQuery(),
@@ -238,7 +241,7 @@ abstract class AbstractScheduler implements Scheduler
                 ],
                 logContext: fn (Throwable $throwable, int $incarnation) => [
                     'claim' => $claim,
-                    'groupName' => (string) $row['groupname'],
+                    'groupName' => $groupName,
                     'step' => 'release',
                 ]
             );
@@ -247,7 +250,7 @@ abstract class AbstractScheduler implements Scheduler
             job: $row['job'],
             queue: $row['queue'],
             duedate: new DateTimeImmutable($row['duedate']),
-            groupName: (string) $row['groupname'],
+            groupName: $groupName,
             identifier: (string) $row['identifier'],
             incarnation: (int) $row['incarnation'],
             claimed: (string) $row['claimed'],
