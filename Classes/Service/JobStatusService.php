@@ -11,18 +11,26 @@ use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 #[Flow\Scope("singleton")]
 abstract class JobStatusService {
 
-    protected const string TOTAL_COUNT_QUERY = "";
-    protected const string RUNNING_COUNT_QUERY = "";
-    protected const string PENDING_COUNT_QUERY = "";
-    protected const string STALE_COUNT_QUERY = "";
-    protected const string FAILED_COUNT_QUERY = "";
+    abstract protected function buildTotalCountQuery(): string;
+
+    /**
+     * Counts jobs that are running and still reporting activity, so the group's
+     * staleJobTimeout decides where "running" ends and "stale" begins.
+     */
+    abstract protected function buildRunningCountQuery(): string;
+
+    abstract protected function buildPendingCountQuery(): string;
+
+    abstract protected function buildStaleCountQuery(): string;
+
+    abstract protected function buildFailedCountQuery(): string;
 
     #[Flow\Inject]
     protected Scheduler $scheduler;
 
     public function getTotalJobCount(string $groupName): int {
         return $this->fetchOne(
-            static::TOTAL_COUNT_QUERY,
+            $this->buildTotalCountQuery(),
             [
                 'groupName' => $groupName
             ],
@@ -34,7 +42,7 @@ abstract class JobStatusService {
 
     public function getRunningJobCount(string $groupName): int {
         return $this->fetchOne(
-            static::RUNNING_COUNT_QUERY,
+            $this->buildRunningCountQuery(),
             [
                 'groupName' => $groupName,
                 'seconds' => Group::get($groupName)->getStaleJobTimeout()
@@ -48,7 +56,7 @@ abstract class JobStatusService {
 
     public function getPendingJobCount(string $groupName): int {
         return $this->fetchOne(
-            static::PENDING_COUNT_QUERY,
+            $this->buildPendingCountQuery(),
             [
                 'groupName' => $groupName
             ],
@@ -60,7 +68,7 @@ abstract class JobStatusService {
 
     public function getStaleJobCount(string $groupName): int {
         return $this->fetchOne(
-            static::STALE_COUNT_QUERY,
+            $this->buildStaleCountQuery(),
             [
                 "groupName" => $groupName,
                 "seconds" => Group::get($groupName)->getStaleJobTimeout()
@@ -74,7 +82,7 @@ abstract class JobStatusService {
 
     public function getFailedJobCount(string $groupName): int {
         return $this->fetchOne(
-            static::FAILED_COUNT_QUERY,
+            $this->buildFailedCountQuery(),
             [
                 'groupName' => $groupName
             ],
@@ -84,8 +92,13 @@ abstract class JobStatusService {
         );
     }
 
-    protected function fetchOne(string $query, array $params = [], array $types = []) {
-        return $this->scheduler->getConnection()->fetchOne($query, $params, $types);
+    /**
+     * @param array<string, mixed> $params
+     * @param array<string, int|string> $types
+     */
+    protected function fetchOne(string $query, array $params = [], array $types = []): int
+    {
+        return (int) $this->scheduler->getConnection()->fetchOne($query, $params, $types);
     }
 
 }
