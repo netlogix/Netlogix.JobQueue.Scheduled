@@ -79,8 +79,10 @@ class ResetStaleJobsTest extends TestCase
         $tableName = ScheduledJob::TABLE_NAME;
         $seconds = self::SECONDS_WITHOUT_ACTIVITY;
 
-        $this->objectManager
-            ->get(EntityManagerInterface::class)
+        $entityManager = $this->objectManager->get(EntityManagerInterface::class);
+        assert($entityManager instanceof EntityManagerInterface);
+
+        $entityManager
             ->getConnection()
             ->executeStatement(
                 /** @lang MySQL */ <<<"MySQL"
