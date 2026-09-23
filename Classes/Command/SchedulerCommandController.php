@@ -21,6 +21,8 @@ use function array_filter;
 use function array_map;
 use function array_sum;
 use function array_values;
+use function explode;
+use function implode;
 use function min;
 
 class SchedulerCommandController extends CommandController
@@ -173,6 +175,11 @@ class SchedulerCommandController extends CommandController
      */
     protected function resolveGroups(array $groupNames): array
     {
+        // Flow's CLI hands over "--group-names=a,b" as the single value "a,b".
+        $groupNames = array_values(array_filter(
+            array_map('trim', explode(',', implode(',', $groupNames))),
+            static fn (string $groupName): bool => $groupName !== ''
+        ));
         if ($groupNames === []) {
             return $this->groupRepository->active();
         }
