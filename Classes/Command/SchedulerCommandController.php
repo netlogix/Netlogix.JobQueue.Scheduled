@@ -10,6 +10,7 @@ use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Polling\PollScheduler;
 use Netlogix\JobQueue\Pool\Pool;
 use Netlogix\JobQueue\Scheduled\Domain\Group;
+use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
@@ -18,6 +19,7 @@ use React\EventLoop\LoopInterface;
 
 use function array_filter;
 use function array_map;
+use function array_sum;
 use function array_values;
 use function min;
 
@@ -33,10 +35,7 @@ class SchedulerCommandController extends CommandController
 
     protected Connection $connection;
 
-    /**
-     * @var array<string, mixed>
-     */
-    protected array $settings = [];
+    protected GroupRepository $groupRepository;
 
     public function injectScheduler(Scheduler $scheduler): void
     {
@@ -58,12 +57,9 @@ class SchedulerCommandController extends CommandController
         $this->connection = $connection;
     }
 
-    /**
-     * @param array<string, mixed> $settings
-     */
-    public function injectSettings(array $settings): void
+    public function injectGroupRepository(GroupRepository $groupRepository): void
     {
-        $this->settings = $settings;
+        $this->groupRepository = $groupRepository;
     }
 
     /**
@@ -109,6 +105,8 @@ class SchedulerCommandController extends CommandController
 
         $loop = Loop::get();
         $pollScheduler = null;
+        /** @var array<string, Pool> $pools Built on first use: a pool starts "preforkSize" workers right away */
+        $pools = [];
 
         // Check for new jobs in the database and schedule as much as the pools have capacity for.
         // Capacity check and slot occupation happen synchronously inside queueDueJobs, so the
@@ -118,15 +116,18 @@ class SchedulerCommandController extends CommandController
         // time, so the smallest one of them satisfies every group.
         $pollScheduler = PollScheduler::create(
             loop: $loop,
-            tryToPickUpWork: function () use ($loop, $groups, $outputResults, &$pollScheduler): void {
+            tryToPickUpWork: function () use ($loop, $groups, $outputResults, &$pollScheduler, &$pools): void {
                 $this->queueDueJobs(
                     loop: $loop,
                     groups: $groups,
+                    pools: $pools,
                     outputResults: $outputResults,
                     pollScheduler: $pollScheduler
                 );
             },
-            hasCapacity: fn () => self::groupsWithCapacity($groups) !== [],
+            hasCapacity: function () use ($groups, &$pools): bool {
+                return self::groupsWithCapacity($groups, $pools) !== [];
+            },
             interval: self::pollingInterval($groups)
         );
         $pollScheduler->start();
@@ -143,13 +144,13 @@ class SchedulerCommandController extends CommandController
         if ($stopPollingAfter) {
             $loop->addTimer(
                 interval: $stopPollingAfter,
-                callback: function () use ($loop, $groups, $pollScheduler, $ping) {
+                callback: function () use ($loop, $pollScheduler, $ping, &$pools) {
                     $pollScheduler->stop();
                     $checkForPoolsToClear = null;
                     $checkForPoolsToClear = $loop->addPeriodicTimer(
                         interval: 1,
-                        callback: function () use ($loop, $groups, $ping, &$checkForPoolsToClear) {
-                            if (self::countRunningJobs($groups) !== 0) {
+                        callback: function () use ($loop, $ping, &$pools, &$checkForPoolsToClear) {
+                            if (self::countRunningJobs($pools) !== 0) {
                                 return;
                             }
                             $loop->cancelTimer($ping);
@@ -172,12 +173,12 @@ class SchedulerCommandController extends CommandController
     protected function resolveGroups(array $groupNames): array
     {
         if ($groupNames === []) {
-            $groupNames = Group::activeNames($this->settings['groups'] ?? []);
+            return $this->groupRepository->active();
         }
 
         $groups = [];
         foreach ($groupNames as $groupName) {
-            $groups[$groupName] = Group::get($groupName);
+            $groups[$groupName] = $this->groupRepository->get($groupName);
         }
 
         return $groups;
@@ -185,12 +186,14 @@ class SchedulerCommandController extends CommandController
 
     /**
      * @param array<string, Group> $groups
+     * @param array<string, Pool> $pools
      * @param ?PollScheduler $pollScheduler Re-poll immediately once a slot frees up
      * @return int Number of handled jobs
      */
     protected function queueDueJobs(
         LoopInterface $loop,
         array $groups,
+        array &$pools,
         bool $outputResults,
         ?PollScheduler $pollScheduler = null
     ): int {
@@ -198,7 +201,7 @@ class SchedulerCommandController extends CommandController
         $retry = new SchedulingCoordinator($this->scheduler);
 
         // Recomputed on every pass: the job just started may have filled up its own group.
-        while (($available = self::groupsWithCapacity($groups)) !== []) {
+        while (($available = self::groupsWithCapacity($groups, $pools)) !== []) {
             $next = $this->scheduler->next(...array_map(static fn (Group $group) => $group->getName(), $available));
 
             if (!$next) {
@@ -207,7 +210,12 @@ class SchedulerCommandController extends CommandController
 
             $numberOfHandledJobs++;
 
-            $pool = $groups[$next->getGroupName()]->getPool($outputResults);
+            $group = $groups[$next->getGroupName()];
+            $pool = $pools[$group->getName()] ??= Pool::create(
+                outputResults: $outputResults,
+                preforkSize: $group->getPreforkSize(),
+                childProcessPollInterval: $group->getChildProcessPollInterval()
+            );
             $process = $pool->runPayload(payload: $next->getSerializedJob(), queueName: $next->getQueueName());
 
             $ping = $loop->addPeriodicTimer(
@@ -237,24 +245,23 @@ class SchedulerCommandController extends CommandController
 
     /**
      * @param array<string, Group> $groups
+     * @param array<string, Pool> $pools
      * @return list<Group>
      */
-    protected static function groupsWithCapacity(array $groups): array
+    protected static function groupsWithCapacity(array $groups, array $pools): array
     {
-        return array_values(array_filter($groups, static fn (Group $group) => $group->hasCapacity()));
+        return array_values(array_filter(
+            $groups,
+            static fn (Group $group) => (($pools[$group->getName()] ?? null)?->count() ?? 0) < $group->getParallel()
+        ));
     }
 
     /**
-     * @param array<string, Group> $groups
+     * @param array<string, Pool> $pools
      */
-    protected static function countRunningJobs(array $groups): int
+    protected static function countRunningJobs(array $pools): int
     {
-        $running = 0;
-        foreach ($groups as $group) {
-            $running += $group->countRunningJobs();
-        }
-
-        return $running;
+        return array_sum(array_map(static fn (Pool $pool) => $pool->count(), $pools));
     }
 
     /**

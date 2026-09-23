@@ -39,6 +39,8 @@ abstract class AbstractScheduler implements Scheduler
      */
     protected TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation;
 
+    protected GroupRepository $groupRepository;
+
     /**
      * Step 1 of claiming a job: tag one due row with the claim value.
      *
@@ -146,12 +148,10 @@ abstract class AbstractScheduler implements Scheduler
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
 
-    /**
-     * @param array<string, mixed> $settings
-     */
-    public function injectSettings(array $settings): void
+    public function injectGroupRepository(GroupRepository $groupRepository): void
     {
-        $this->activeGroupNames = Group::activeNames($settings['groups'] ?? []);
+        $this->groupRepository = $groupRepository;
+        $this->activeGroupNames = array_keys($groupRepository->active());
         if (!$this->activeGroupNames) {
             $this->activeGroupNames = [self::DEFAULT_GROUP_NAME];
         }
@@ -370,7 +370,7 @@ abstract class AbstractScheduler implements Scheduler
                 sql: $this->buildResetStaleJobsQuery(),
                 params: [
                     'groupName' => $groupName,
-                    'seconds' => max(Group::get($groupName)->getStaleJobTimeout(), 1),
+                    'seconds' => $this->groupRepository->get($groupName)->getStaleJobTimeout(),
                 ],
                 types: [
                     'groupName' => Types::STRING,

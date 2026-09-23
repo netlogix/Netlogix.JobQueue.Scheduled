@@ -4,7 +4,7 @@ namespace Netlogix\JobQueue\Scheduled\Service;
 
 use Doctrine\DBAL\Types\Types;
 use Neos\Flow\Annotations as Flow;
-use Netlogix\JobQueue\Scheduled\Domain\Group;
+use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 
@@ -28,6 +28,9 @@ abstract class JobStatusService {
     #[Flow\Inject]
     protected Scheduler $scheduler;
 
+    #[Flow\Inject]
+    protected GroupRepository $groupRepository;
+
     public function getTotalJobCount(string $groupName): int {
         return $this->fetchOne(
             $this->buildTotalCountQuery(),
@@ -45,7 +48,7 @@ abstract class JobStatusService {
             $this->buildRunningCountQuery(),
             [
                 'groupName' => $groupName,
-                'seconds' => Group::get($groupName)->getStaleJobTimeout()
+                'seconds' => $this->groupRepository->get($groupName)->getStaleJobTimeout()
             ],
             [
                 'groupName' => Types::STRING,
@@ -71,7 +74,7 @@ abstract class JobStatusService {
             $this->buildStaleCountQuery(),
             [
                 "groupName" => $groupName,
-                "seconds" => Group::get($groupName)->getStaleJobTimeout()
+                "seconds" => $this->groupRepository->get($groupName)->getStaleJobTimeout()
             ],
             [
                 "groupName" => Types::STRING,
