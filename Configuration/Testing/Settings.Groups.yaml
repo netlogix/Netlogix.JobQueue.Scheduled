@@ -2,6 +2,20 @@ Netlogix:
   JobQueue:
     Scheduled:
 
-      groupNames:
+      groups:
 
         additional-group: true
+
+        # Every setting deviating from the defaults, so a test can tell them apart
+        configured-group:
+          parallel: 3
+          pollingInterval: 2.5
+          preforkSize: 1
+          childProcessPollInterval: 0.5
+          staleJobTimeout: 120
+
+        falsy-group: false
+
+        disabled-group:
+          enabled: false
+          parallel: 4

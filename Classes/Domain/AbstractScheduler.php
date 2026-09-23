@@ -15,7 +15,10 @@ use Netlogix\JobQueue\Scheduled\Service\Connection;
 use Neos\Flow\Annotations as Flow;
 use Throwable;
 
-use function array_filter;
+use function array_fill_keys;
+use function array_keys;
+use function array_values;
+use function implode;
 use function in_array;
 use function sprintf;
 
@@ -57,8 +60,7 @@ abstract class AbstractScheduler implements Scheduler
 
     public function injectSettings(array $settings)
     {
-        $activeGroupNames = array_filter($settings['groupNames'] ?? []);
-        $this->activeGroupNames = array_keys($activeGroupNames);
+        $this->activeGroupNames = Group::activeNames($settings['groups'] ?? []);
         if (!$this->activeGroupNames) {
             $this->activeGroupNames = [self::DEFAULT_GROUP_NAME];
         }
