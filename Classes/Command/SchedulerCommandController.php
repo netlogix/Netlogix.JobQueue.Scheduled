@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
-use Doctrine\DBAL\Exception;
-use Doctrine\DBAL\Platforms\MySqlPlatform;
-use Doctrine\DBAL\Platforms\PostgreSQL94Platform;
-use Doctrine\DBAL\Platforms\PostgreSqlPlatform;
-use Doctrine\DBAL\Types\Types;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Polling\PollScheduler;
 use Netlogix\JobQueue\Pool\Pool;
-use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
+use Netlogix\JobQueue\Scheduled\Domain\Group;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
+use React\EventLoop\Loop;
+use React\EventLoop\LoopInterface;
+
+use function array_filter;
+use function array_map;
+use function array_values;
+use function min;
 
 class SchedulerCommandController extends CommandController
 {
@@ -30,6 +32,11 @@ class SchedulerCommandController extends CommandController
     protected ThrowableStorageInterface $throwableStorage;
 
     protected Connection $connection;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $settings = [];
 
     public function injectScheduler(Scheduler $scheduler): void
     {
@@ -52,16 +59,29 @@ class SchedulerCommandController extends CommandController
     }
 
     /**
+     * @param array<string, mixed> $settings
+     */
+    public function injectSettings(array $settings): void
+    {
+        $this->settings = $settings;
+    }
+
+    /**
      * Reset stale jobs that have not changed for too long.
      *
-     * @param string $groupName Free jobs in this group only
-     * @param ?int $minutes @deprecated Use staleJobTimeout configuration setting instead.
+     * Each group is freed with its own staleJobTimeout, so this runs one
+     * statement per group instead of a single bundled one.
+     *
+     * @param array $groupNames Free jobs of these groups only, comma separated; all active groups if empty
+     * @phpstan-param list<string> $groupNames
      */
-    public function resetStaleJobsCommand(
-        string $groupName,
-        ?int $minutes = 10
-    ): void {
-        $freed = $this->scheduler->resetStaleJobs($groupName, $minutes);
+    public function resetStaleJobsCommand(array $groupNames = []): void
+    {
+        $freed = 0;
+        foreach ($this->resolveGroups($groupNames) as $group) {
+            $freed += $this->scheduler->resetStaleJobs($group->getName());
+        }
+
         if ($freed) {
             $this->outputLine('Freed ' . $freed . ' stale jobs.');
         }
@@ -71,85 +91,115 @@ class SchedulerCommandController extends CommandController
      * Fetch due jobs and schedule them, then wait and retry.
      * This is probably not the best way of polling for changes
      *
-     * @param string $groupName Handle jobs in this group only
+     * @param array $groupNames Handle jobs of these groups only, comma separated; all active groups if empty
+     * @phpstan-param list<string> $groupNames
      * @param bool $outputResults Write child process output to the console
-     * @param int $parallel Number of jobs to handle in parallel
-     * @param int $preforkSize Number of jobs to already boot up without having a job waiting
      * @param int $stopPollingAfter Stop polling after this many seconds
-     * @param float $pollingIntervalInSeconds How often to check for new jobs in seconds
      */
     public function pollForIncomingJobsCommand(
-        string $groupName,
+        array $groupNames = [],
         bool $outputResults = false,
-        int $parallel = 1,
-        int $preforkSize = 0,
-        int $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS,
-        float $pollingIntervalInSeconds = 0.1
+        int $stopPollingAfter = self::TEN_MINUTES_IN_SECONDS
     ): void {
-        $parallel = max($parallel, 1);
-        Pool::create(
-            outputResults: $outputResults,
-            preforkSize: $preforkSize
-        )
-            ->runLoop(function (Pool $pool) use ($groupName, $parallel, $stopPollingAfter, $pollingIntervalInSeconds): void {
-                $scheduler = null;
+        $groups = $this->resolveGroups($groupNames);
+        if ($groups === []) {
+            $this->outputLine('No active job groups configured.');
+            return;
+        }
 
-                // Check for new jobs in the database and schedule as much as the pool has capacity for.
-                // Capacity check and slot occupation happen synchronously inside queueDueJobs, so the
-                // periodic poll and the immediate poll on job completion can never exceed $parallel.
-                $scheduler = PollScheduler::create(
-                    loop: $pool->eventLoop,
-                    tryToPickUpWork: function () use ($pool, $groupName, $parallel, &$scheduler): void {
-                        $this->queueDueJobs(pool: $pool, groupName: $groupName, parallel: $parallel, pollScheduler: $scheduler);
-                    },
-                    hasCapacity: fn () => count($pool) < $parallel,
-                    interval: $pollingIntervalInSeconds
+        $loop = Loop::get();
+        $pollScheduler = null;
+
+        // Check for new jobs in the database and schedule as much as the pools have capacity for.
+        // Capacity check and slot occupation happen synchronously inside queueDueJobs, so the
+        // periodic poll and the immediate poll on job completion can never exceed a group's capacity.
+        //
+        // One scheduler for all groups: a group's pollingInterval is an upper bound of the waiting
+        // time, so the smallest one of them satisfies every group.
+        $pollScheduler = PollScheduler::create(
+            loop: $loop,
+            tryToPickUpWork: function () use ($loop, $groups, $outputResults, &$pollScheduler): void {
+                $this->queueDueJobs(
+                    loop: $loop,
+                    groups: $groups,
+                    outputResults: $outputResults,
+                    pollScheduler: $pollScheduler
                 );
-                $scheduler->start();
+            },
+            hasCapacity: fn () => self::groupsWithCapacity($groups) !== [],
+            interval: self::pollingInterval($groups)
+        );
+        $pollScheduler->start();
 
-                // Keep the database connection alive
-                $ping = $pool->eventLoop->addPeriodicTimer(
-                    interval: 30,
-                    callback: function () use (&$ping) {
-                        $this->scheduler->ping();
-                    }
-                );
+        // Keep the database connection alive
+        $ping = $loop->addPeriodicTimer(
+            interval: 30,
+            callback: function () {
+                $this->scheduler->ping();
+            }
+        );
 
-                // Once the timeout is reached, wait until the final jobs are done and stop the loop
-                if ($stopPollingAfter) {
-                    $pool->eventLoop->addTimer(
-                        interval: $stopPollingAfter,
-                        callback: function () use ($pool, $scheduler, $ping) {
-                            $scheduler->stop();
-                            $checkForPoolToClear = $pool->eventLoop->addPeriodicTimer(
-                                interval: 1,
-                                callback: function () use ($pool, $ping, &$checkForPoolToClear) {
-                                    if (count($pool) === 0) {
-                                        $pool->eventLoop->cancelTimer($ping);
-                                        $pool->eventLoop->cancelTimer($checkForPoolToClear);
-                                    }
-                                }
-                            );
+        // Once the timeout is reached, wait until the final jobs are done and stop the loop
+        if ($stopPollingAfter) {
+            $loop->addTimer(
+                interval: $stopPollingAfter,
+                callback: function () use ($loop, $groups, $pollScheduler, $ping) {
+                    $pollScheduler->stop();
+                    $checkForPoolsToClear = null;
+                    $checkForPoolsToClear = $loop->addPeriodicTimer(
+                        interval: 1,
+                        callback: function () use ($loop, $groups, $ping, &$checkForPoolsToClear) {
+                            if (self::countRunningJobs($groups) !== 0) {
+                                return;
+                            }
+                            $loop->cancelTimer($ping);
+                            if ($checkForPoolsToClear !== null) {
+                                $loop->cancelTimer($checkForPoolsToClear);
+                            }
                         }
                     );
                 }
-            });
+            );
+        }
+
+        $loop->run();
     }
 
     /**
-     * @param Pool $pool A pool of subprocesses waiting for new jobs to execute
-     * @param string $groupName Handle only jobs of this group
-     * @param int $parallel Number of jobs to handle in parallel
+     * @param list<string> $groupNames Empty means every active group
+     * @return array<string, Group>
+     */
+    protected function resolveGroups(array $groupNames): array
+    {
+        if ($groupNames === []) {
+            $groupNames = Group::activeNames($this->settings['groups'] ?? []);
+        }
+
+        $groups = [];
+        foreach ($groupNames as $groupName) {
+            $groups[$groupName] = Group::get($groupName);
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param array<string, Group> $groups
      * @param ?PollScheduler $pollScheduler Re-poll immediately once a slot frees up
      * @return int Number of handled jobs
      */
-    protected function queueDueJobs(Pool $pool, string $groupName, int $parallel, ?PollScheduler $pollScheduler = null): int
-    {
+    protected function queueDueJobs(
+        LoopInterface $loop,
+        array $groups,
+        bool $outputResults,
+        ?PollScheduler $pollScheduler = null
+    ): int {
         $numberOfHandledJobs = 0;
         $retry = new SchedulingCoordinator($this->scheduler);
 
-        while (count($pool) < $parallel) {
-            $next = $this->scheduler->next($groupName);
+        // Recomputed on every pass: the job just started may have filled up its own group.
+        while (($available = self::groupsWithCapacity($groups)) !== []) {
+            $next = $this->scheduler->next(...array_map(static fn (Group $group) => $group->getName(), $available));
 
             if (!$next) {
                 return $numberOfHandledJobs;
@@ -157,9 +207,10 @@ class SchedulerCommandController extends CommandController
 
             $numberOfHandledJobs++;
 
+            $pool = $groups[$next->getGroupName()]->getPool($outputResults);
             $process = $pool->runPayload(payload: $next->getSerializedJob(), queueName: $next->getQueueName());
 
-            $ping = $pool->eventLoop->addPeriodicTimer(
+            $ping = $loop->addPeriodicTimer(
                 interval: 1,
                 callback: function () use ($process, $next) {
                     if ($process->isRunning()) {
@@ -168,18 +219,49 @@ class SchedulerCommandController extends CommandController
                 }
             );
 
-            $process->on(Pool::EVENT_EXIT, function () use ($pool, $retry, $ping, $pollScheduler, &$numberOfHandledJobs) {
-                $pool->eventLoop->cancelTimer($ping);
+            $process->on(Pool::EVENT_EXIT, function () use ($loop, $retry, $ping, $pollScheduler, &$numberOfHandledJobs) {
+                $loop->cancelTimer($ping);
                 $numberOfHandledJobs--;
-if ($numberOfHandledJobs === 0) {
-    $retry->scheduleAll();
-}
+                if ($numberOfHandledJobs === 0) {
+                    $retry->scheduleAll();
+                }
                 // A slot just freed up - pick up the next due job without waiting for the next periodic tick.
                 $pollScheduler?->requestImmediatePoll();
             });
             $process->on(Pool::EVENT_SUCCESS, fn () => $this->scheduler->release($next));
             $process->on(Pool::EVENT_ERROR, fn () => $retry->markJobForRescheduling($next));
         }
+
         return $numberOfHandledJobs;
+    }
+
+    /**
+     * @param array<string, Group> $groups
+     * @return list<Group>
+     */
+    protected static function groupsWithCapacity(array $groups): array
+    {
+        return array_values(array_filter($groups, static fn (Group $group) => $group->hasCapacity()));
+    }
+
+    /**
+     * @param array<string, Group> $groups
+     */
+    protected static function countRunningJobs(array $groups): int
+    {
+        $running = 0;
+        foreach ($groups as $group) {
+            $running += $group->countRunningJobs();
+        }
+
+        return $running;
+    }
+
+    /**
+     * @param array<string, Group> $groups
+     */
+    protected static function pollingInterval(array $groups): float
+    {
+        return min(array_map(static fn (Group $group) => $group->getPollingInterval(), $groups));
     }
 }
