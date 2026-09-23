@@ -4,6 +4,7 @@ namespace Netlogix\JobQueue\Scheduled\Service;
 
 use Doctrine\DBAL\Types\Types;
 use Neos\Flow\Annotations as Flow;
+use Netlogix\JobQueue\Scheduled\Domain\Group;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 
@@ -36,7 +37,7 @@ abstract class JobStatusService {
             static::RUNNING_COUNT_QUERY,
             [
                 'groupName' => $groupName,
-                'seconds' => $this->scheduler->getStaleJobTimeoutSeconds()
+                'seconds' => Group::get($groupName)->getStaleJobTimeout()
             ],
             [
                 'groupName' => Types::STRING,
@@ -62,7 +63,7 @@ abstract class JobStatusService {
             static::STALE_COUNT_QUERY,
             [
                 "groupName" => $groupName,
-                "seconds" => $this->scheduler->getStaleJobTimeoutSeconds()
+                "seconds" => Group::get($groupName)->getStaleJobTimeout()
             ],
             [
                 "groupName" => Types::STRING,

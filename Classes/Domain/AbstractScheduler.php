@@ -39,14 +39,102 @@ abstract class AbstractScheduler implements Scheduler
      */
     protected TimeBaseForDueDateCalculation $timeBaseForDueDateCalculation;
 
-    #[Flow\InjectConfiguration(path: 'staleJobTimeout')]
-    protected int $staleJobTimeoutSecs;
+    /**
+     * Step 1 of claiming a job: tag one due row with the claim value.
+     *
+     * One branch per group, each limited to its own oldest due job, combined by
+     * UNION ALL and narrowed down to a single row afterwards. Every branch is an
+     * equality lookup on "groupname" and therefore keeps using idx_for_update,
+     * which a "groupname IN (…)" would give up: duedate is only ordered within
+     * one group, so sorting across groups would need a filesort.
+     *
+     * Group names are bound as :g0 … :gn, see claimParameters().
+     */
+    abstract protected function buildClaimQuery(string ...$groupNames): string;
 
-    protected const CLAIM_QUERY = "";
-    protected const SELECT_QUERY = "";
-    protected const RELEASE_QUERY = "";
-    protected const SCHEDULE_QUERY = "";
-    protected const RESET_STALE_JOBS_QUERY = "";
+    /**
+     * Step 2 of claiming a job: read the row that carries the claim value.
+     *
+     * Filters on the claim value alone - which group was hit is unknown until
+     * the row has been read, and a claim is a UUID.
+     */
+    abstract protected function buildSelectQuery(): string;
+
+    /**
+     * Step 3 of claiming a job: unlock the row so parallel processes may
+     * overwrite the claim value again. Unrelated to release().
+     */
+    abstract protected function buildReleaseQuery(): string;
+
+    abstract protected function buildScheduleQuery(): string;
+
+    abstract protected function buildResetStaleJobsQuery(): string;
+
+    protected function buildIsScheduledQuery(): string
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        return /** @lang MySQL */ <<<"MySQL"
+            SELECT 1 FROM {$tableName}
+            WHERE identifier = :identifier
+              AND groupname = :groupname
+              AND claimed = ''
+            MySQL;
+    }
+
+    protected function buildDeleteJobQuery(): string
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        return /** @lang MySQL */ <<<"MySQL"
+            DELETE FROM {$tableName}
+            WHERE groupname = :groupname
+              AND identifier = :identifier
+              AND claimed = :claimed
+            MySQL;
+    }
+
+    /**
+     * Fallback of release(): the row was rescheduled while running, so it must
+     * not be deleted but freed for the next run.
+     */
+    protected function buildFreeJobQuery(): string
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        return /** @lang MySQL */ <<<"MySQL"
+            UPDATE {$tableName}
+            SET running = 0,
+                activity = NOW()
+            WHERE groupname = :groupname
+              AND identifier = :identifier
+              AND claimed = ''
+            MySQL;
+    }
+
+    protected function buildFailQuery(): string
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        return /** @lang MySQL */ <<<"MySQL"
+            UPDATE {$tableName}
+            SET claimed = :failed,
+                running = 0,
+                activity = NOW()
+            WHERE identifier = :identifier
+            MySQL;
+    }
+
+    protected function buildActivityQuery(): string
+    {
+        $tableName = ScheduledJob::TABLE_NAME;
+
+        return /** @lang MySQL */ <<<"MySQL"
+            UPDATE {$tableName}
+            SET activity = NOW()
+            WHERE identifier = :identifier
+            MySQL;
+    }
 
     public function injectConnection(Connection $connection): void
     {
@@ -58,7 +146,10 @@ abstract class AbstractScheduler implements Scheduler
         $this->timeBaseForDueDateCalculation = $timeBaseForDueDateCalculation;
     }
 
-    public function injectSettings(array $settings)
+    /**
+     * @param array<string, mixed> $settings
+     */
+    public function injectSettings(array $settings): void
     {
         $this->activeGroupNames = Group::activeNames($settings['groups'] ?? []);
         if (!$this->activeGroupNames) {
@@ -77,14 +168,8 @@ abstract class AbstractScheduler implements Scheduler
     public function isScheduled(string $groupName, string $identifier): bool
     {
         $this->validateGroupName($groupName);
-        $tableName = ScheduledJob::TABLE_NAME;
 
-        $statement = <<<"MySQL"
-            SELECT 1 FROM {$tableName}
-            WHERE identifier = :identifier
-              AND groupname = :groupname
-              AND claimed = ''
-            MySQL;
+        $statement = $this->buildIsScheduledQuery();
 
         return $this->dbal->fetchOne($statement, ['identifier' => $identifier, 'groupname' => $groupName]) !== false;
     }
@@ -94,43 +179,45 @@ abstract class AbstractScheduler implements Scheduler
         $this->dbal->ping();
     }
 
-    public function next(string $groupName): ?ScheduledJob
+    public function next(string $groupName, string ...$furtherGroupNames): ?ScheduledJob
     {
-        $this->validateGroupName($groupName);
+        // array_values(): named arguments end up in the variadic as string keys,
+        // which would break the positional :g0 … :gn binding.
+        $groupNames = array_values([$groupName, ...$furtherGroupNames]);
+        foreach ($groupNames as $name) {
+            $this->validateGroupName($name);
+        }
         $claim = Algorithms::generateUUID();
 
-        $claimQuery = static::CLAIM_QUERY;
+        $groupParameters = self::claimParameters($groupNames);
+
         $this->dbal
             ->executeQuery(
-                sql: $claimQuery,
+                sql: $this->buildClaimQuery(...$groupNames),
                 params: [
                     'now' => $this->timeBaseForDueDateCalculation->getNow(),
-                    'groupname' => $groupName,
                     'claimed' => $claim,
+                    ...$groupParameters,
                 ],
                 types: [
                     'now' => Types::DATETIME_IMMUTABLE,
-                    'groupname' => Types::STRING,
                     'claimed' => Types::STRING,
+                    ...array_fill_keys(array_keys($groupParameters), Types::STRING),
                 ],
                 logContext: fn (Throwable $throwable, int $incarnation) => [
                     'claim' => $claim,
-                    'groupName' => $groupName,
+                    'groupName' => implode(', ', $groupNames),
                     'step' => 'claim',
                 ]
             );
 
-        $select = static::SELECT_QUERY;
-
         $row = $this->dbal
             ->executeQuery(
-                sql: $select,
+                sql: $this->buildSelectQuery(),
                 params: [
-                    'groupname' => $groupName,
                     'claimed' => $claim,
                 ],
                 types: [
-                    'groupname' => Types::STRING,
                     'claimed' => Types::STRING,
                 ]
             )
@@ -140,22 +227,18 @@ abstract class AbstractScheduler implements Scheduler
             return null;
         }
 
-        $release = static::RELEASE_QUERY;
-
         $this->dbal
             ->executeQuery(
-                sql: $release,
+                sql: $this->buildReleaseQuery(),
                 params: [
-                    'groupname' => $groupName,
                     'claimed' => $claim,
                 ],
                 types: [
-                    'groupname' => Types::STRING,
                     'claimed' => Types::STRING,
                 ],
                 logContext: fn (Throwable $throwable, int $incarnation) => [
                     'claim' => $claim,
-                    'groupName' => $groupName,
+                    'groupName' => (string) $row['groupname'],
                     'step' => 'release',
                 ]
             );
@@ -164,7 +247,7 @@ abstract class AbstractScheduler implements Scheduler
             job: $row['job'],
             queue: $row['queue'],
             duedate: new DateTimeImmutable($row['duedate']),
-            groupName: $groupName,
+            groupName: (string) $row['groupname'],
             identifier: (string) $row['identifier'],
             incarnation: (int) $row['incarnation'],
             claimed: (string) $row['claimed'],
@@ -172,20 +255,28 @@ abstract class AbstractScheduler implements Scheduler
         );
     }
 
+    /**
+     * Binds group names as :g0 … :gn, matching the branches of the claim query.
+     *
+     * @param list<string> $groupNames
+     * @return array<string, string>
+     */
+    protected static function claimParameters(array $groupNames): array
+    {
+        $parameters = [];
+        foreach ($groupNames as $index => $groupName) {
+            $parameters['g' . $index] = $groupName;
+        }
+
+        return $parameters;
+    }
+
     public function release(ScheduledJob $job): void
     {
         if ($job->getClaimed() === '') {
             throw new InvalidArgumentException('Cannot release unclaimed jobs', 1657027508);
         }
-        $tableName = ScheduledJob::TABLE_NAME;
-
-        $delete = /** @lang MySQL */
-            <<<"MySQL"
-                DELETE FROM {$tableName}
-                WHERE groupname = :groupname
-                  AND identifier = :identifier
-                  AND claimed = :claimed
-                MySQL;
+        $delete = $this->buildDeleteJobQuery();
         $deleteResult = $this->dbal
             ->executeQuery(
                 sql: $delete,
@@ -196,15 +287,7 @@ abstract class AbstractScheduler implements Scheduler
                 ]
             );
         if ($deleteResult->rowCount() === 0) {
-            $free = /** @lang MySQL */
-                <<<MySQL
-                    UPDATE {$tableName}
-                    SET running = 0,
-                        activity = NOW()
-                    WHERE groupname = :groupname
-                      AND identifier = :identifier
-                      AND claimed = ''
-                    MySQL;
+            $free = $this->buildFreeJobQuery();
             $this->dbal
                 ->executeQuery(
                     sql: $free,
@@ -224,16 +307,7 @@ abstract class AbstractScheduler implements Scheduler
 
         $reason = substr($reason, 0, 36);
 
-        $tableName = ScheduledJob::TABLE_NAME;
-
-        $update = /** @lang MySQL */
-            <<<MySQL
-                UPDATE {$tableName}
-                SET claimed = :failed,
-                    running = 0,
-                    activity = NOW()
-                WHERE identifier = :identifier
-                MySQL;
+        $update = $this->buildFailQuery();
         $this->dbal
             ->executeQuery(
                 sql: $update,
@@ -264,14 +338,7 @@ abstract class AbstractScheduler implements Scheduler
 
     public function activity(ScheduledJob $job): void
     {
-        $tableName = ScheduledJob::TABLE_NAME;
-
-        $update = /** @lang MySQL */
-            <<<"MySQL"
-                UPDATE {$tableName}
-                SET activity = NOW()
-                WHERE identifier = :identifier
-                MySQL;
+        $update = $this->buildActivityQuery();
         $this->dbal
             ->executeQuery(
                 sql: $update,
@@ -285,23 +352,22 @@ abstract class AbstractScheduler implements Scheduler
     }
 
     /**
-     * Reset stale jobs that have not changed for too long.
+     * Reset stale jobs of one group that have not changed for too long.
      *
-     * @param string $groupName Free jobs in this group only
-     * @param int|null $minutes Only free jobs that are stale for at least this many minutes. @deprecated Use staleJobTimeout configuration setting instead.
+     * One statement per group: the threshold is the group's own staleJobTimeout,
+     * and a single UPDATE cannot apply a different one per row.
+     *
      * @return int Number of freed jobs
      * @throws Exception
      */
-    public function resetStaleJobs(
-        string $groupName,
-        ?int $minutes = null
-    ): int {
+    public function resetStaleJobs(string $groupName): int
+    {
         return $this->dbal
             ->executeQuery(
-                sql: static::RESET_STALE_JOBS_QUERY,
+                sql: $this->buildResetStaleJobsQuery(),
                 params: [
                     'groupName' => $groupName,
-                    'seconds' => max($minutes === null ? $this->staleJobTimeoutSecs : $minutes * 60, 1),
+                    'seconds' => max(Group::get($groupName)->getStaleJobTimeout(), 1),
                 ],
                 types: [
                     'groupName' => Types::STRING,
@@ -313,7 +379,7 @@ abstract class AbstractScheduler implements Scheduler
     protected function scheduleJob(ScheduledJob $job): void
     {
         $this->validateGroupName($job->getGroupName());
-        $statement = static::SCHEDULE_QUERY;
+        $statement = $this->buildScheduleQuery();
 
         $this->dbal
             ->executeQuery(
@@ -359,8 +425,4 @@ abstract class AbstractScheduler implements Scheduler
         return $this->dbal;
     }
 
-    public function getStaleJobTimeoutSeconds(): int
-    {
-        return $this->staleJobTimeoutSecs;
-    }
 }
