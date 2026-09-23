@@ -17,7 +17,7 @@ class PostgreSQLJobStatusService extends JobStatusService {
         return /** @lang PostgreSQL */ <<<PostgreSQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE running = 1
-        AND claimed NOT LIKE 'failed(%)'
+        AND claimed NOT LIKE 'failed(%'
         AND groupname = :groupName
         AND activity > NOW() - make_interval(secs => :seconds)
         PostgreSQL;
@@ -39,7 +39,7 @@ class PostgreSQLJobStatusService extends JobStatusService {
         return /** @lang PostgreSQL */ <<<PostgreSQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE running = 1
-        AND claimed NOT LIKE 'failed(%)'
+        AND claimed NOT LIKE 'failed(%'
         AND groupname = :groupName
         AND activity <= NOW() - make_interval(secs => :seconds)
         PostgreSQL;
@@ -49,7 +49,7 @@ class PostgreSQLJobStatusService extends JobStatusService {
     {
         return /** @lang PostgreSQL */ <<<PostgreSQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
-        WHERE claimed LIKE 'failed(%)'
+        WHERE claimed LIKE 'failed(%'
         AND groupname = :groupName
         PostgreSQL;
     }
