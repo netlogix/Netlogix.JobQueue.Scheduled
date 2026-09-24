@@ -191,7 +191,7 @@ abstract class AbstractScheduler implements Scheduler
 
         $groupParameters = self::claimParameters($groupNames);
 
-        $this->dbal
+        $claimedRows = $this->dbal
             ->executeQuery(
                 sql: $this->buildClaimQuery(...$groupNames),
                 params: [
@@ -209,7 +209,12 @@ abstract class AbstractScheduler implements Scheduler
                     'groupName' => implode(', ', $groupNames),
                     'step' => 'claim',
                 ]
-            );
+            )
+            ->rowCount();
+
+        if ($claimedRows === 0) {
+            return null;
+        }
 
         $row = $this->dbal
             ->executeQuery(
