@@ -6,6 +6,7 @@ namespace Netlogix\JobQueue\Scheduled\Tests\Functional;
 
 use InvalidArgumentException;
 use Neos\Flow\Tests\FunctionalTestCase;
+use Netlogix\JobQueue\Scheduled\Domain\Group;
 use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
 
 use function array_keys;
@@ -49,6 +50,17 @@ class GroupTest extends FunctionalTestCase
         self::assertSame(1, $group->getPreforkSize());
         self::assertSame(0.5, $group->getChildProcessPollInterval());
         self::assertSame(120, $group->getStaleJobTimeout());
+    }
+
+    /**
+     * @test
+     */
+    public function Intervals_of_zero_or_less_are_raised_to_the_minimum(): void
+    {
+        $group = Group::fromConfiguration('zero', ['pollingInterval' => 0, 'childProcessPollInterval' => -1]);
+
+        self::assertSame(0.01, $group->getPollingInterval());
+        self::assertSame(0.01, $group->getChildProcessPollInterval());
     }
 
     /**

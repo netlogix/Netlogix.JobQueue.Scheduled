@@ -24,6 +24,7 @@ final readonly class Group
     private const PREFORK_SIZE = 0;
     private const CHILD_PROCESS_POLL_INTERVAL = 0.1;
     private const STALE_JOB_TIMEOUT = 60;
+    private const MIN_INTERVAL = 0.01;
 
     public function __construct(
         private string $name,
@@ -47,9 +48,15 @@ final readonly class Group
         return new self(
             name: $name,
             parallel: max((int) ($configuration['parallel'] ?? self::PARALLEL), 1),
-            pollingInterval: (float) ($configuration['pollingInterval'] ?? self::POLLING_INTERVAL),
+            pollingInterval: max(
+                (float) ($configuration['pollingInterval'] ?? self::POLLING_INTERVAL),
+                self::MIN_INTERVAL
+            ),
             preforkSize: max((int) ($configuration['preforkSize'] ?? self::PREFORK_SIZE), 0),
-            childProcessPollInterval: (float) ($configuration['childProcessPollInterval'] ?? self::CHILD_PROCESS_POLL_INTERVAL),
+            childProcessPollInterval: max(
+                (float) ($configuration['childProcessPollInterval'] ?? self::CHILD_PROCESS_POLL_INTERVAL),
+                self::MIN_INTERVAL
+            ),
             staleJobTimeout: max((int) ($configuration['staleJobTimeout'] ?? self::STALE_JOB_TIMEOUT), 1),
         );
     }
