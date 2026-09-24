@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Tests\Functional\Groups;
 
+use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Tests\Functional\TestCase;
@@ -65,6 +66,20 @@ class MultipleGroupsTest extends TestCase
         self::expectExceptionMessage('Group name "non-existing-group" is not active');
 
         $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME, 'non-existing-group');
+    }
+
+    /**
+     * @test
+     */
+    public function The_default_group_is_not_active_once_every_group_is_disabled(): void
+    {
+        $groupRepository = clone $this->objectManager->get(GroupRepository::class);
+        $groupRepository->injectSettings(['groups' => [Scheduler::DEFAULT_GROUP_NAME => false]]);
+        $this->scheduler->injectGroupRepository($groupRepository);
+
+        self::expectExceptionCode(1721393320);
+
+        $this->scheduler->next(Scheduler::DEFAULT_GROUP_NAME);
     }
 
     private function scheduleJobIn(string $groupName, string $identifier, int $secondsDue): void

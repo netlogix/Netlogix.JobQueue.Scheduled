@@ -16,10 +16,10 @@ use Neos\Flow\Annotations as Flow;
 use Throwable;
 
 use function array_fill_keys;
+use function array_key_exists;
 use function array_keys;
 use function array_values;
 use function implode;
-use function in_array;
 use function sprintf;
 
 abstract class AbstractScheduler implements Scheduler
@@ -28,11 +28,6 @@ abstract class AbstractScheduler implements Scheduler
      * @var Connection
      */
     protected $dbal;
-
-    /**
-     * @var string[]
-     */
-    protected array $activeGroupNames = [self::DEFAULT_GROUP_NAME];
 
     /**
      * @var TimeBaseForDueDateCalculation
@@ -151,10 +146,6 @@ abstract class AbstractScheduler implements Scheduler
     public function injectGroupRepository(GroupRepository $groupRepository): void
     {
         $this->groupRepository = $groupRepository;
-        $this->activeGroupNames = array_keys($groupRepository->active());
-        if (!$this->activeGroupNames) {
-            $this->activeGroupNames = [self::DEFAULT_GROUP_NAME];
-        }
     }
 
     public function schedule(ScheduledJob $job, ScheduledJob ...$jobs): void
@@ -423,7 +414,7 @@ abstract class AbstractScheduler implements Scheduler
 
     protected function validateGroupName(string $groupName): void
     {
-        if (!in_array($groupName, $this->activeGroupNames, true)) {
+        if (!array_key_exists($groupName, $this->groupRepository->active())) {
             throw new InvalidArgumentException(\sprintf('Group name "%s" is not active', $groupName), 1721393320);
         }
     }
