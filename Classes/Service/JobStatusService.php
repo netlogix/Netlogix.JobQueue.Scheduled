@@ -61,10 +61,12 @@ abstract class JobStatusService {
         return $this->fetchOne(
             $this->buildPendingCountQuery(),
             [
-                'groupName' => $groupName
+                'groupName' => $groupName,
+                'seconds' => $this->groupRepository->get($groupName)->getStaleJobTimeout()
             ],
             [
-                'groupName' => Types::STRING
+                'groupName' => Types::STRING,
+                'seconds' => Types::INTEGER
             ]
         );
     }

@@ -68,6 +68,21 @@ class JobStatusServiceTest extends TestCase
         self::assertSame(1, $this->jobStatusService->getRunningJobCount('configured-group'), 'dort gilt der Job noch als laufend');
     }
 
+    /**
+     * @test
+     */
+    public function A_claim_is_pending_until_it_outlives_the_stale_timeout(): void
+    {
+        $this->scheduleJobInState('claimed-job', running: 2, claimed: 'a-claim', secondsSinceActivity: 5);
+        $this->scheduleJobInState('stuck-job', running: 2, claimed: 'b-claim', secondsSinceActivity: 300);
+
+        $group = Scheduler::DEFAULT_GROUP_NAME;
+
+        self::assertSame(1, $this->jobStatusService->getPendingJobCount($group), 'pending');
+        self::assertSame(1, $this->jobStatusService->getStaleJobCount($group), 'stale');
+        self::assertSame(0, $this->jobStatusService->getRunningJobCount($group), 'running');
+    }
+
     private function scheduleJobInState(
         string $identifier,
         int $running,

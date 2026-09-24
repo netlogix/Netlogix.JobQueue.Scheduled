@@ -29,7 +29,8 @@ class MySQLJobStatusService extends JobStatusService {
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE ((running = 0
                    AND claimed = '')
-          OR running = 2)
+          OR (running = 2
+                   AND activity > NOW() - INTERVAL :seconds SECOND))
         AND groupname = :groupName
         MySQL;
     }
@@ -38,7 +39,7 @@ class MySQLJobStatusService extends JobStatusService {
     {
         return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
-        WHERE running = 1
+        WHERE running IN (1, 2)
         AND claimed NOT LIKE 'failed(%)'
         AND groupname = :groupName
         AND activity <= NOW() - INTERVAL :seconds SECOND
