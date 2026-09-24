@@ -21,7 +21,13 @@ interface Scheduler {
 
     public function ping(): void;
 
-    public function next(string $groupName): ?ScheduledJob;
+    /**
+     * Claims the oldest due job of any of the given groups.
+     *
+     * At least one group is mandatory: resolving "no argument" to "all groups"
+     * belongs to the caller, which knows which of them still have capacity.
+     */
+    public function next(string $groupName, string ...$furtherGroupNames): ?ScheduledJob;
 
     public function release(ScheduledJob $job): void;
 
@@ -29,9 +35,7 @@ interface Scheduler {
 
     public function activity(ScheduledJob $job): void;
 
-    public function resetStaleJobs(string $groupName, ?int $minutes = null): int;
+    public function resetStaleJobs(string $groupName): int;
 
     public function getConnection(): Connection;
-
-    public function getStaleJobTimeoutSeconds(): int;
 }

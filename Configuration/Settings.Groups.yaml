@@ -2,7 +2,7 @@ Netlogix:
   JobQueue:
     Scheduled:
 
-      groupNames:
+      groups:
 
         # For parallel execution of jobs, multiple workers are necessary.
         # All jobs in the same queue have the same priority and are executed in the order they were scheduled.
@@ -18,4 +18,20 @@ Netlogix:
         #
         # All groups need to be defined and enabled.
         # Other strings can neither be used for scheduling jobs nor for having workers execute them.
+        #
+        # A group is either a configuration array or a plain boolean. Every setting falls back to the
+        # constants of Netlogix\JobQueue\Scheduled\Domain\Group, so only deviations need to be written:
+        #
+        #   my-group:
+        #     enabled: true                    # a falsy group, or "enabled: false", disables it
+        #     parallel: 1                      # jobs of this group running at the same time
+        #     pollingInterval: 0.1             # seconds to wait before looking for work again
+        #     preforkSize: 0                   # worker processes kept ready while no job is waiting
+        #     childProcessPollInterval: 0.1    # seconds between exit status checks of a running job
+        #     staleJobTimeout: 60              # seconds without activity after which a job counts as abandoned
+        #
+        # "my-group: true" enables a group with all defaults. An empty array is falsy and disables it.
+        #
+        # The polling interval is an upper bound, not a beat: one process polls all its groups and uses
+        # the smallest interval of them, so a group is never asked less often than it asked for.
         default: true
