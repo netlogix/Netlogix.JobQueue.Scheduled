@@ -142,7 +142,7 @@ class MySQLScheduler extends AbstractScheduler  {
         SET running = 0,
             claimed = '',
             incarnation = incarnation + 1
-        WHERE running = 1
+        WHERE running IN (1, 2)
           AND claimed NOT LIKE 'failed(%)'
           AND groupname = :groupName
           AND activity < NOW() - INTERVAL :seconds SECOND

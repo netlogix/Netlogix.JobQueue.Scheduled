@@ -58,13 +58,33 @@ class ResetStaleJobsTest extends TestCase
     }
 
     /**
+     * @test
+     */
+    public function A_job_stuck_between_claim_and_release_is_freed(): void
+    {
+        $this->scheduleRunningJob(Scheduler::DEFAULT_GROUP_NAME, 'default-job', running: 2);
+
+        self::assertSame(1, $this->scheduler->resetStaleJobs(Scheduler::DEFAULT_GROUP_NAME));
+    }
+
+    /**
+     * @test
+     */
+    public function A_job_between_claim_and_release_within_its_groups_timeout_is_kept(): void
+    {
+        $this->scheduleRunningJob('configured-group', 'configured-job', running: 2);
+
+        self::assertSame(0, $this->scheduler->resetStaleJobs('configured-group'));
+    }
+
+    /**
      * Schedules a job and backdates it into the state resetStaleJobs looks for:
-     * running, with its last activity long enough ago.
+     * running or claimed, with its last activity long enough ago.
      *
      * Timestamps are written by the database, so the fixed "Now" of the testing
      * context cannot drift away from the NOW() the query compares against.
      */
-    private function scheduleRunningJob(string $groupName, string $identifier): void
+    private function scheduleRunningJob(string $groupName, string $identifier, int $running = 1): void
     {
         $this->scheduler->schedule(
             ScheduledJob::createNew(
@@ -87,11 +107,11 @@ class ResetStaleJobsTest extends TestCase
         $connection->executeStatement(
             /** @lang SQL */ <<<"SQL"
                 UPDATE {$tableName}
-                SET running = 1,
+                SET running = :running,
                     activity = {$activity}
                 WHERE identifier = :identifier
                 SQL,
-            ['identifier' => $identifier]
+            ['running' => $running, 'identifier' => $identifier]
         );
     }
 }
