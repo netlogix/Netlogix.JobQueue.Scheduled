@@ -107,8 +107,14 @@ class SchedulerCommandController extends CommandController
 
         $loop = Loop::get();
         $pollScheduler = null;
-        /** @var array<string, Pool> $pools Built on first use: a pool starts "preforkSize" workers right away */
-        $pools = [];
+        $pools = array_map(
+            static fn (Group $group) => Pool::create(
+                outputResults: $outputResults,
+                preforkSize: $group->getPreforkSize(),
+                childProcessPollInterval: $group->getChildProcessPollInterval()
+            ),
+            $groups
+        );
 
         // Check for new jobs in the database and schedule as much as the pools have capacity for.
         // Capacity check and slot occupation happen synchronously inside queueDueJobs, so the
@@ -118,16 +124,15 @@ class SchedulerCommandController extends CommandController
         // time, so the smallest one of them satisfies every group.
         $pollScheduler = PollScheduler::create(
             loop: $loop,
-            tryToPickUpWork: function () use ($loop, $groups, $outputResults, &$pollScheduler, &$pools): void {
+            tryToPickUpWork: function () use ($loop, $groups, $pools, &$pollScheduler): void {
                 $this->queueDueJobs(
                     loop: $loop,
                     groups: $groups,
                     pools: $pools,
-                    outputResults: $outputResults,
                     pollScheduler: $pollScheduler
                 );
             },
-            hasCapacity: function () use ($groups, &$pools): bool {
+            hasCapacity: function () use ($groups, $pools): bool {
                 return self::groupsWithCapacity($groups, $pools) !== [];
             },
             interval: self::pollingInterval($groups)
@@ -147,11 +152,11 @@ class SchedulerCommandController extends CommandController
         if ($stopPollingAfter) {
             $loop->addTimer(
                 interval: $stopPollingAfter,
-                callback: function () use ($loop, $pollScheduler, $ping, &$pools) {
+                callback: function () use ($loop, $pollScheduler, $ping, $pools) {
                     $checkForPoolsToClear = null;
                     $checkForPoolsToClear = $loop->addPeriodicTimer(
                         interval: 1,
-                        callback: function () use ($loop, $pollScheduler, $ping, &$pools, &$checkForPoolsToClear) {
+                        callback: function () use ($loop, $pollScheduler, $ping, $pools, &$checkForPoolsToClear) {
                             if (self::countRunningJobs($pools) !== 0) {
                                 return;
                             }
@@ -205,8 +210,7 @@ class SchedulerCommandController extends CommandController
     protected function queueDueJobs(
         LoopInterface $loop,
         array $groups,
-        array &$pools,
-        bool $outputResults,
+        array $pools,
         ?PollScheduler $pollScheduler = null
     ): int {
         $numberOfHandledJobs = 0;
@@ -222,13 +226,10 @@ class SchedulerCommandController extends CommandController
 
             $numberOfHandledJobs++;
 
-            $group = $groups[$next->getGroupName()];
-            $pool = $pools[$group->getName()] ??= Pool::create(
-                outputResults: $outputResults,
-                preforkSize: $group->getPreforkSize(),
-                childProcessPollInterval: $group->getChildProcessPollInterval()
+            $process = $pools[$next->getGroupName()]->runPayload(
+                payload: $next->getSerializedJob(),
+                queueName: $next->getQueueName()
             );
-            $process = $pool->runPayload(payload: $next->getSerializedJob(), queueName: $next->getQueueName());
 
             $ping = $loop->addPeriodicTimer(
                 interval: 1,
@@ -264,7 +265,7 @@ class SchedulerCommandController extends CommandController
     {
         return array_values(array_filter(
             $groups,
-            static fn (Group $group) => (($pools[$group->getName()] ?? null)?->count() ?? 0) < $group->getParallel()
+            static fn (Group $group) => $pools[$group->getName()]->count() < $group->getParallel()
         ));
     }
 
