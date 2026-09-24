@@ -160,6 +160,10 @@ class SchedulerCommandController extends CommandController
                             if ($checkForPoolsToClear !== null) {
                                 $loop->cancelTimer($checkForPoolsToClear);
                             }
+                            // Idle prefork workers keep timers on the loop, so it would never return.
+                            foreach ($pools as $pool) {
+                                $pool->shutdownObject();
+                            }
                         }
                     );
                 }
