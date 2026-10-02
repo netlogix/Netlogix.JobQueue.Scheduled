@@ -2,6 +2,9 @@
 
 namespace Netlogix\JobQueue\Scheduled\Domain;
 
+use function array_keys;
+use function implode;
+
 class PostgreSQLScheduler extends AbstractScheduler {
 
     /**
@@ -20,19 +23,44 @@ class PostgreSQLScheduler extends AbstractScheduler {
      * `AS MATERIALIZED` forces the candidate selection to be evaluated exactly
      * once, so `LIMIT 1` reliably bounds the update to a single row.
      *
-     * @lang PostgreSQL
+     * Each group needs its own CTE: PostgreSQL rejects `FOR UPDATE` in a query
+     * that carries a `UNION`, so the lock cannot sit on the combined select. As
+     * a result one row per group is locked although only one of them is
+     * claimed. With autocommit the transaction ends with the statement, and
+     * competing pollers skip the locked rows and take the next oldest.
      */
-    protected const CLAIM_QUERY = <<<PostgreSQL
-        WITH delinquents AS MATERIALIZED (
+    protected function buildClaimQuery(string ...$groupNames): string
+    {
+        $candidates = [];
+        $branches = [];
+        foreach (array_keys($groupNames) as $index) {
+            $candidates[] = <<<PostgreSQL
+                c{$index} AS MATERIALIZED (
+                    SELECT identifier, duedate
+                    FROM netlogix_jobqueue_scheduled_job
+                    WHERE duedate <= :now
+                      AND groupname = :g{$index}
+                      AND claimed = ''
+                      AND running = 0
+                    ORDER BY duedate ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                )
+                PostgreSQL;
+            $branches[] = "SELECT identifier, duedate FROM c{$index}";
+        }
+        $candidates = implode(",\n", $candidates);
+        $branches = implode("\n                UNION ALL\n                ", $branches);
+
+        return /** @lang PostgreSQL */ <<<PostgreSQL
+        WITH {$candidates},
+        delinquents AS (
             SELECT identifier
-            FROM netlogix_jobqueue_scheduled_job
-            WHERE duedate <= :now
-              AND groupname = :groupname
-              AND claimed = ''
-              AND running = 0
+            FROM (
+                {$branches}
+            ) AS candidates
             ORDER BY duedate ASC
             LIMIT 1
-            FOR UPDATE SKIP LOCKED
         )
         UPDATE netlogix_jobqueue_scheduled_job AS j
         SET claimed  = :claimed,
@@ -42,34 +70,32 @@ class PostgreSQLScheduler extends AbstractScheduler {
         WHERE j.identifier = delinquents.identifier
           AND j.claimed = '';
         PostgreSQL;
+    }
 
-    /**
-     * @lang PostgreSQL
-     */
-    protected const SELECT_QUERY = <<<PostgreSQL
-        SELECT identifier, duedate, queue, job, incarnation, claimed, running
+    protected function buildSelectQuery(): string
+    {
+        return /** @lang PostgreSQL */ <<<PostgreSQL
+        SELECT identifier, groupname, duedate, queue, job, incarnation, claimed, running
             FROM netlogix_jobqueue_scheduled_job
             WHERE claimed = :claimed
-              AND groupname = :groupname
         PostgreSQL;
+    }
 
-    /**
-     * @lang PostgreSQL
-     */
-    protected const RELEASE_QUERY = <<<PostgreSQL
+    protected function buildReleaseQuery(): string
+    {
+        return /** @lang PostgreSQL */ <<<PostgreSQL
         UPDATE netlogix_jobqueue_scheduled_job
             SET running = 1,
                 activity = NOW()
             WHERE claimed = :claimed
-              AND groupname = :groupname
               AND running = 2
         PostgreSQL;
+    }
 
 
-    /**
-     * @lang PostgreSQL
-     */
-    protected const SCHEDULE_QUERY = <<<PostgreSQL
+    protected function buildScheduleQuery(): string
+    {
+        return /** @lang PostgreSQL */ <<<PostgreSQL
         INSERT INTO netlogix_jobqueue_scheduled_job
             (groupname, identifier, duedate, activity, queue, job, incarnation, claimed, running)
         VALUES
@@ -94,16 +120,20 @@ class PostgreSQLScheduler extends AbstractScheduler {
                     THEN netlogix_jobqueue_scheduled_job.claimed
             END;
         PostgreSQL;
+    }
 
-    protected const RESET_STALE_JOBS_QUERY = <<<PostgreSQL
+    protected function buildResetStaleJobsQuery(): string
+    {
+        return /** @lang PostgreSQL */ <<<PostgreSQL
         UPDATE netlogix_jobqueue_scheduled_job
         SET running = 0,
             claimed = '',
             incarnation = incarnation + 1
-        WHERE running = 1
-          AND claimed NOT LIKE 'failed(%)'
+        WHERE running IN (1, 2)
+          AND claimed NOT LIKE 'failed(%'
           AND groupname = :groupName
           AND activity < NOW() - make_interval(secs => :seconds)
         PostgreSQL;
+    }
 
 }
