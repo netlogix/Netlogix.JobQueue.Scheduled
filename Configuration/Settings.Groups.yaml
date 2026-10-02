@@ -28,7 +28,7 @@ Netlogix:
         #     pollingInterval: 0.1             # seconds to wait before looking for work again
         #     preforkSize: 0                   # worker processes kept ready while no job is waiting
         #     childProcessPollInterval: 0.1    # seconds between exit status checks of a running job
-        #     staleJobTimeout: 60              # seconds without activity after which a job counts as abandoned
+        #     staleJobTimeout: 1800            # seconds without activity after which a job counts as abandoned
         #
         # "my-group: true" enables a group with all defaults. An empty array is falsy and disables it.
         #

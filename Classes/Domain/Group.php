@@ -23,7 +23,7 @@ final readonly class Group
     private const POLLING_INTERVAL = 0.1;
     private const PREFORK_SIZE = 0;
     private const CHILD_PROCESS_POLL_INTERVAL = 0.1;
-    private const STALE_JOB_TIMEOUT = 60;
+    private const STALE_JOB_TIMEOUT = 1800;
     private const MIN_INTERVAL = 0.01;
 
     public function __construct(

@@ -35,7 +35,7 @@ class GroupTest extends FunctionalTestCase
         self::assertSame(0.1, $group->getPollingInterval());
         self::assertSame(0, $group->getPreforkSize());
         self::assertSame(0.1, $group->getChildProcessPollInterval());
-        self::assertSame(60, $group->getStaleJobTimeout());
+        self::assertSame(1800, $group->getStaleJobTimeout());
     }
 
     /**
@@ -49,7 +49,7 @@ class GroupTest extends FunctionalTestCase
         self::assertSame(2.5, $group->getPollingInterval());
         self::assertSame(1, $group->getPreforkSize());
         self::assertSame(0.5, $group->getChildProcessPollInterval());
-        self::assertSame(120, $group->getStaleJobTimeout());
+        self::assertSame(3600, $group->getStaleJobTimeout());
     }
 
     /**

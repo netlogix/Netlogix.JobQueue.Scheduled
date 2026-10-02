@@ -28,7 +28,7 @@ class JobStatusServiceTest extends TestCase
     {
         $this->scheduleJobInState('pending-job', running: 0, claimed: '', secondsSinceActivity: 0);
         $this->scheduleJobInState('running-job', running: 1, claimed: 'some-claim', secondsSinceActivity: 5);
-        $this->scheduleJobInState('stale-job', running: 1, claimed: 'other-claim', secondsSinceActivity: 300);
+        $this->scheduleJobInState('stale-job', running: 1, claimed: 'other-claim', secondsSinceActivity: 2700);
         $this->scheduleJobInState('failed-job', running: 0, claimed: 'failed(boom)', secondsSinceActivity: 0);
 
         $group = Scheduler::DEFAULT_GROUP_NAME;
@@ -53,18 +53,18 @@ class JobStatusServiceTest extends TestCase
     }
 
     /**
-     * The stale threshold is the group's own staleJobTimeout - 120 seconds for
-     * "configured-group" against the default of 60.
+     * The stale threshold is the group's own staleJobTimeout - 3600 seconds for
+     * "configured-group" against the package default.
      *
      * @test
      */
     public function The_border_between_running_and_stale_follows_the_group(): void
     {
-        $this->scheduleJobInState('default-job', running: 1, claimed: 'a-claim', secondsSinceActivity: 90);
-        $this->scheduleJobInState('configured-job', running: 1, claimed: 'b-claim', secondsSinceActivity: 90, groupName: 'configured-group');
+        $this->scheduleJobInState('default-job', running: 1, claimed: 'a-claim', secondsSinceActivity: 2700);
+        $this->scheduleJobInState('configured-job', running: 1, claimed: 'b-claim', secondsSinceActivity: 2700, groupName: 'configured-group');
 
-        self::assertSame(1, $this->jobStatusService->getStaleJobCount(Scheduler::DEFAULT_GROUP_NAME), 'default, Timeout 60');
-        self::assertSame(0, $this->jobStatusService->getStaleJobCount('configured-group'), 'configured-group, Timeout 120');
+        self::assertSame(1, $this->jobStatusService->getStaleJobCount(Scheduler::DEFAULT_GROUP_NAME), 'default timeout');
+        self::assertSame(0, $this->jobStatusService->getStaleJobCount('configured-group'), 'configured-group, Timeout 3600');
         self::assertSame(1, $this->jobStatusService->getRunningJobCount('configured-group'), 'dort gilt der Job noch als laufend');
     }
 
@@ -74,7 +74,7 @@ class JobStatusServiceTest extends TestCase
     public function A_claim_is_pending_until_it_outlives_the_stale_timeout(): void
     {
         $this->scheduleJobInState('claimed-job', running: 2, claimed: 'a-claim', secondsSinceActivity: 5);
-        $this->scheduleJobInState('stuck-job', running: 2, claimed: 'b-claim', secondsSinceActivity: 300);
+        $this->scheduleJobInState('stuck-job', running: 2, claimed: 'b-claim', secondsSinceActivity: 2700);
 
         $group = Scheduler::DEFAULT_GROUP_NAME;
 

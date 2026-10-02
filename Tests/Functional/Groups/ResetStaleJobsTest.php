@@ -11,11 +11,11 @@ use Netlogix\JobQueue\Scheduled\Tests\Functional\TestCase;
 
 /**
  * The timeouts come from the Testing settings: the default group uses the
- * default of 60 seconds, "configured-group" raises it to 120.
+ * package default, "configured-group" raises it to 3600 seconds.
  */
 class ResetStaleJobsTest extends TestCase
 {
-    private const SECONDS_WITHOUT_ACTIVITY = 90;
+    private const SECONDS_WITHOUT_ACTIVITY = 2700;
 
     /**
      * @test
@@ -41,7 +41,7 @@ class ResetStaleJobsTest extends TestCase
         self::assertSame(
             0,
             $freed,
-            'The group raises the timeout to 120 seconds, so 90 seconds of silence are not stale yet.'
+            'The group raises the timeout to 3600 seconds, so 2700 seconds of silence are not stale yet.'
         );
     }
 
