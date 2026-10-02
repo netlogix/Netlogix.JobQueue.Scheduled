@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\Command;
 
+use Closure;
+use Doctrine\DBAL\Exception as DatabaseException;
 use Flowpack\JobQueue\Common\Job\JobManager;
 use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
@@ -11,23 +13,31 @@ use Netlogix\JobQueue\Polling\PollScheduler;
 use Netlogix\JobQueue\Pool\Pool;
 use Netlogix\JobQueue\Scheduled\Domain\Group;
 use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
+use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
 use Netlogix\JobQueue\Scheduled\Domain\SchedulingCoordinator;
 use Netlogix\JobQueue\Scheduled\Domain\Scheduler;
 use Netlogix\JobQueue\Scheduled\Service\Connection;
+use React\ChildProcess\Process;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 
 use function array_filter;
 use function array_map;
 use function array_sum;
 use function array_values;
 use function explode;
+use function hrtime;
 use function implode;
+use function max;
 use function min;
 
 class SchedulerCommandController extends CommandController
 {
     private const THIRTY_MINUTES_IN_SECONDS = 1800;
+
+    // Covers the loop sleeping in the retry backoff of Connection while the database comes back.
+    private const KILL_MARGIN_IN_SECONDS = 10;
 
     protected Scheduler $scheduler;
 
@@ -124,14 +134,16 @@ class SchedulerCommandController extends CommandController
         // time, so the smallest one of them satisfies every group.
         $pollScheduler = PollScheduler::create(
             loop: $loop,
-            tryToPickUpWork: function () use ($loop, $groups, $pools, &$pollScheduler): void {
-                $this->queueDueJobs(
-                    loop: $loop,
-                    groups: $groups,
-                    pools: $pools,
-                    pollScheduler: $pollScheduler
-                );
-            },
+            tryToPickUpWork: $this->survivingDatabaseErrors(
+                function () use ($loop, $groups, $pools, &$pollScheduler): void {
+                    $this->queueDueJobs(
+                        loop: $loop,
+                        groups: $groups,
+                        pools: $pools,
+                        pollScheduler: $pollScheduler
+                    );
+                }
+            ),
             hasCapacity: function () use ($groups, $pools): bool {
                 return self::groupsWithCapacity($groups, $pools) !== [];
             },
@@ -142,9 +154,9 @@ class SchedulerCommandController extends CommandController
         // Keep the database connection alive
         $ping = $loop->addPeriodicTimer(
             interval: 30,
-            callback: function () {
+            callback: $this->survivingDatabaseErrors(function () {
                 $this->scheduler->ping();
-            }
+            })
         );
 
         // Once the timeout is reached, keep polling until the first moment no job is running, then stop the loop.
@@ -218,6 +230,7 @@ class SchedulerCommandController extends CommandController
 
         // Recomputed on every pass: the job just started may have filled up its own group.
         while (($available = self::groupsWithCapacity($groups, $pools)) !== []) {
+            $claimedAt = hrtime(true);
             $next = $this->scheduler->next(...array_map(static fn (Group $group) => $group->getName(), $available));
 
             if (!$next) {
@@ -231,29 +244,107 @@ class SchedulerCommandController extends CommandController
                 queueName: $next->getQueueName()
             );
 
-            $ping = $loop->addPeriodicTimer(
-                interval: 1,
-                callback: function () use ($process, $next) {
-                    if ($process->isRunning()) {
-                        $this->scheduler->activity($next);
-                    }
-                }
+            $ping = $this->keepActive(
+                loop: $loop,
+                process: $process,
+                job: $next,
+                group: $groups[$next->getGroupName()],
+                claimedAt: $claimedAt
             );
 
             $process->on(Pool::EVENT_EXIT, function () use ($loop, $retry, $ping, $pollScheduler, &$numberOfHandledJobs) {
                 $loop->cancelTimer($ping);
                 $numberOfHandledJobs--;
                 if ($numberOfHandledJobs === 0) {
-                    $retry->scheduleAll();
+                    $this->survivingDatabaseErrors(fn () => $retry->scheduleAll())();
                 }
                 // A slot just freed up - pick up the next due job without waiting for the next periodic tick.
                 $pollScheduler?->requestImmediatePoll();
             });
-            $process->on(Pool::EVENT_SUCCESS, fn () => $this->scheduler->release($next));
+            $process->on(Pool::EVENT_SUCCESS, fn () => $this->releaseEventually($loop, $next));
             $process->on(Pool::EVENT_ERROR, fn () => $retry->markJobForRescheduling($next));
         }
 
         return $numberOfHandledJobs;
+    }
+
+    /**
+     * Writes the job's activity every second while its process runs.
+     *
+     * Once the last successful write is older than the group's staleJobTimeout,
+     * resetStaleJobs may already have freed the job for another run, so the
+     * process gets terminated instead.
+     *
+     * @param int $claimedAt hrtime() taken before the claim, which wrote the first activity
+     */
+    protected function keepActive(
+        LoopInterface $loop,
+        Process $process,
+        ScheduledJob $job,
+        Group $group,
+        int $claimedAt
+    ): TimerInterface {
+        $lastActivity = $claimedAt;
+        $failing = false;
+        $killAfter = max($group->getStaleJobTimeout() - self::KILL_MARGIN_IN_SECONDS, $group->getStaleJobTimeout() / 2);
+
+        return $loop->addPeriodicTimer(
+            interval: 1,
+            callback: function () use ($process, $job, $killAfter, &$lastActivity, &$failing) {
+                if (!$process->isRunning()) {
+                    return;
+                }
+                if ($failing && (hrtime(true) - $lastActivity) / 1e9 >= $killAfter) {
+                    $process->terminate();
+                    return;
+                }
+                $attempt = hrtime(true);
+                try {
+                    $this->scheduler->activity($job);
+                    $lastActivity = $attempt;
+                    $failing = false;
+                } catch (DatabaseException $exception) {
+                    $this->throwableStorage->logThrowable($exception);
+                    $failing = true;
+                }
+            }
+        );
+    }
+
+    /**
+     * A lost release lets resetStaleJobs free the job, which then runs a second time.
+     */
+    protected function releaseEventually(LoopInterface $loop, ScheduledJob $job): void
+    {
+        $timer = null;
+        $attempt = function () use ($loop, $job, &$timer, &$attempt): void {
+            try {
+                $this->scheduler->release($job);
+            } catch (DatabaseException $exception) {
+                $this->throwableStorage->logThrowable($exception);
+                $timer ??= $loop->addPeriodicTimer(interval: 1, callback: $attempt);
+                return;
+            }
+            if ($timer !== null) {
+                $loop->cancelTimer($timer);
+            }
+        };
+        $attempt();
+    }
+
+    /**
+     * An uncaught exception ends $loop->run() and orphans every running job, so
+     * database failures are logged instead. Anything else still ends the process.
+     */
+    protected function survivingDatabaseErrors(Closure $callback): Closure
+    {
+        return function (...$arguments) use ($callback): void {
+            try {
+                $callback(...$arguments);
+            } catch (DatabaseException $exception) {
+                $this->throwableStorage->logThrowable($exception);
+            }
+        };
     }
 
     /**
