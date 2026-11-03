@@ -63,19 +63,27 @@ class Connection
         $this->dbal->connect();
     }
 
-    public function fetchOne(string $query, array $params = [], array $types = [], ?callable $logContext = null)
+    /**
+     * @param array<string, mixed> $params
+     * @param array<string, int|string> $types
+     */
+    public function fetchOne(string $query, array $params = [], array $types = [], ?callable $logContext = null): mixed
     {
         return $this->withAutoReconnectAndRetry(function () use ($query, $params, $types) {
             return $this->dbal->fetchOne($query, $params, $types);
         }, logContext: $logContext);
     }
 
+    /**
+     * @param array<string, mixed> $params
+     * @param array<string, int|string> $types
+     */
     public function fetchOneReadUncommited(
         string $query,
         array $params = [],
         array $types = [],
         ?callable $logContext = null
-    ) {
+    ): mixed {
         return $this->withAutoReconnectAndRetry(dbalInteraction: function () use ($query, $params, $types) {
             $previous = $this->dbal->getTransactionIsolation();
             try {

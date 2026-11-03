@@ -4,43 +4,64 @@ namespace Netlogix\JobQueue\Scheduled\Service;
 
 class MySQLJobStatusService extends JobStatusService {
 
-    protected const string TOTAL_COUNT_QUERY = <<<MySQL
+    protected function buildTotalCountQuery(): string
+    {
+        return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE groupname = :groupName
         MySQL;
+    }
 
-    protected const string RUNNING_COUNT_QUERY = <<<MySQL
+    protected function buildRunningCountQuery(): string
+    {
+        return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE running = 1
         AND claimed NOT LIKE 'failed(%)'
         AND groupname = :groupName
         AND activity > NOW() - INTERVAL :seconds SECOND
         MySQL;
+    }
 
-    protected const string PENDING_COUNT_QUERY = <<<MySQL
+    protected function buildPendingCountQuery(): string
+    {
+        return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE ((running = 0
                    AND claimed = '')
-          OR running = 2)
+          OR (running = 2
+                   AND activity > NOW() - INTERVAL :seconds SECOND))
         AND groupname = :groupName
         MySQL;
+    }
 
-    protected const string STALE_COUNT_QUERY = <<<MySQL
+    protected function buildStaleCountQuery(): string
+    {
+        return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
-        WHERE running = 1
+        WHERE running IN (1, 2)
         AND claimed NOT LIKE 'failed(%)'
         AND groupname = :groupName
         AND activity <= NOW() - INTERVAL :seconds SECOND
         MySQL;
+    }
 
-    protected const string FAILED_COUNT_QUERY = <<<MySQL
+    protected function buildFailedCountQuery(): string
+    {
+        return /** @lang MySQL */ <<<MySQL
         SELECT COUNT(*) FROM netlogix_jobqueue_scheduled_job
         WHERE claimed LIKE 'failed(%)'
         AND groupname = :groupName
         MySQL;
+    }
 
-    protected function fetchOne(string $query, array $params = [], array $types = []) {
-        return $this->scheduler->getConnection()->fetchOneReadUncommited($query, $params, $types);
+    /**
+     * @param array<string, mixed> $params
+     * @param array<string, int|string> $types
+     */
+    protected function fetchOne(string $query, array $params = [], array $types = []): int
+    {
+        return (int) $this->scheduler->getConnection()->fetchOneReadUncommited($query, $params, $types);
     }
 
 }
