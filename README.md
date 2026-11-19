@@ -152,3 +152,7 @@ abstract class AutoScheduledJob implements ScheduledJobInterface, JobInterface {
     }
 }
 ```
+
+Such a job can still be put into the scheduler directly, with any queue name. When
+it's due, the scheduler executes it instead of scheduling it again, and the
+`scheduledJobs` retry settings of that queue apply.

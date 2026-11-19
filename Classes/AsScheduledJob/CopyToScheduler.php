@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Netlogix\JobQueue\Scheduled\AsScheduledJob;
 
+use Flowpack\JobQueue\Common\Job\JobInterface;
 use Flowpack\JobQueue\Common\Queue\FakeQueue;
 use Flowpack\JobQueue\Common\Queue\QueueInterface;
 use Neos\Flow\Annotations as Flow;
@@ -46,6 +47,27 @@ class CopyToScheduler
         }
     }
 
+    private static ?JobInterface $dueJob = null;
+
+    /**
+     * Executes $job instead of scheduling it, because the scheduler found it due.
+     * Every other job, e.g. one queued from within $job, still goes to the scheduler.
+     *
+     * @template T
+     * @param callable(): T $callable
+     * @return T
+     */
+    public static function executeAsDue(JobInterface $job, callable $callable)
+    {
+        $dueJob = self::$dueJob;
+        self::$dueJob = $job;
+        try {
+            return $callable();
+        } finally {
+            self::$dueJob = $dueJob;
+        }
+    }
+
     /**
      * @Flow\Around("within(Netlogix\JobQueue\Scheduled\AsScheduledJob\ScheduledJobInterface) && within(Flowpack\JobQueue\Common\Job\JobInterface) && method(.*->execute())")
      */
@@ -54,7 +76,7 @@ class CopyToScheduler
         $proceed = fn() => $joinPoint->getAdviceChain()->proceed($joinPoint);
 
         $job = $joinPoint->getProxy();
-        if (self::$forceNormalExecution || !$job instanceof ScheduledJobInterface) {
+        if (self::$forceNormalExecution || !$job instanceof ScheduledJobInterface || $job === self::$dueJob) {
             return $proceed();
         }
 
@@ -62,7 +84,8 @@ class CopyToScheduler
         assert($queue instanceof QueueInterface);
 
         if ($queue instanceof FakeQueue && $queue->getName() === SchedulingInformation::QUEUE_NAME) {
-            // This is the call done by the scheduling worker, so actually work on the job instead of scheduling it.
+            // Scheduler workers of earlier releases pass the bare job instead of a WorkerRun.
+            // Callers outside the scheduler, e.g. tests, use this queue to execute a job directly.
             return $proceed();
         }
 

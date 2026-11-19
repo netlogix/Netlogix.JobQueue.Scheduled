@@ -11,6 +11,7 @@ use Neos\Flow\Cli\CommandController;
 use Neos\Flow\Log\ThrowableStorageInterface;
 use Netlogix\JobQueue\Polling\PollScheduler;
 use Netlogix\JobQueue\Pool\Pool;
+use Netlogix\JobQueue\Scheduled\AsScheduledJob\WorkerRun;
 use Netlogix\JobQueue\Scheduled\Domain\Group;
 use Netlogix\JobQueue\Scheduled\Domain\GroupRepository;
 use Netlogix\JobQueue\Scheduled\Domain\Model\ScheduledJob;
@@ -31,6 +32,7 @@ use function hrtime;
 use function implode;
 use function max;
 use function min;
+use function serialize;
 
 class SchedulerCommandController extends CommandController
 {
@@ -240,7 +242,7 @@ class SchedulerCommandController extends CommandController
             $numberOfHandledJobs++;
 
             $process = $pools[$next->getGroupName()]->runPayload(
-                payload: $next->getSerializedJob(),
+                payload: serialize(new WorkerRun($next->getSerializedJob())),
                 queueName: $next->getQueueName()
             );
 

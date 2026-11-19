@@ -195,6 +195,42 @@ class CopyToSchedulerTest extends TestCase
     /**
      * @test
      */
+    public function Jobs_queued_from_within_a_due_job_still_get_redirected_to_the_scheduler(): void
+    {
+        $job = $this->createMock(TestingScheduledJobInterface::class);
+        $job
+            ->expects(self::once())
+            ->method('getSchedulingInformation')
+            ->willReturn(new SchedulingInformation('identifier-0b0f6a52-4f4e-4a43-a0c4-2f7d5bd4a1e3'));
+
+        $joinPoint = $this->createMock(JoinPoint::class);
+        $joinPoint
+            ->method('getProxy')
+            ->willReturn($job);
+        $joinPoint
+            ->method('getMethodArgument')
+            ->willReturn($this->createMock(QueueInterface::class));
+        $joinPoint
+            ->expects(self::never())
+            ->method('getAdviceChain');
+
+        $scheduler = $this->createMock(Scheduler::class);
+        $scheduler
+            ->expects(self::once())
+            ->method('schedule');
+
+        $copyToSchedulerAspect = new CopyToScheduler();
+        $copyToSchedulerAspect->injectScheduler($scheduler);
+
+        CopyToScheduler::executeAsDue(
+            $this->createMock(TestingScheduledJobInterface::class),
+            fn () => $copyToSchedulerAspect->execute($joinPoint)
+        );
+    }
+
+    /**
+     * @test
+     */
     public function Using_the_scheduler_even_for_scheduled_jobs_can_be_omitted(): void
     {
         $job = new class implements ScheduledJobInterface, JobInterface {
